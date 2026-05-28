@@ -28,13 +28,14 @@ Avoid copying a real person's exact likeness unless the user explicitly provides
    - Tone: bullish, bearish, absurdist, satirical, schizo-wall, or propaganda.
 
 2. **Write 10–18 caption fragments**
-   Mix these types:
-   - Big slogan: 3–8 words, all caps or title case.
-   - Bad take: fake confident sentence.
-   - Cope line: “This proves I was right all along”.
-   - Bullish line: “go brrrrr”, “number up”, “merge my PR”.
-   - Degen line: “only 2% understand”, “not financial advice”.
-   - Tiny background text: repeated phrase, label, fake quote.
+   Mix these types — see [Caption recipe](#caption-recipe) below for exact counts and examples:
+
+- Big slogan: 3–8 words, all caps or title case.
+- Bad take: fake confident sentence.
+- Cope line: “This proves I was right all along”.
+- Bullish line: “go brrrrr”, “number up”, “merge my PR”.
+- Degen line: “only 2% understand”, “not financial advice”.
+- Tiny background text: repeated phrase, label, fake quote.
 
 3. **Choose layout**
    - `bell_curve`: IQ distribution / adoption curve at bottom or center.
@@ -43,11 +44,21 @@ Avoid copying a real person's exact likeness unless the user explicitly provides
    - `center_wojak`: one huge crying wojak or doomer in center.
    - `market_map`: meme characters arranged by conviction / intelligence / liquidity.
 
-4. **Generate image with a style prompt**
-   Use image generation for the base collage. Ask for mostly readable text, but expect some text artifacts. If exact text matters, generate the image with empty speech/text areas and add final captions afterward in an editor/PIL/Canva.
+## 生成图片 — 两种路径
 
-5. **Post-process if needed**
-   For exact wording: overlay text manually using black bold Arial/Helvetica/Impact, irregular sizes, slight rotations, and dense spacing.
+### 路径A: AI 图像生成（优先）
+Use AI image generation tools (ComfyUI / Midjourney / DALL·E / Stable Diffusion) with the prompt template below. Ask for mostly readable text, but expect some text artifacts. If exact text matters, generate the image with empty speech/text areas and add final captions afterward in an editor/PIL/Canva.
+
+### 路径B: PIL 脚本直接渲染（ComfyUI 不可用时）
+A Python script is included for server-side rendering without GPU:
+```bash
+python3 make_meme.py
+# → outputs ~/ai_meme_collage.png
+```
+Customize the script at `{skill_dir}/make_meme.py` to change captions, layout, and colors.
+
+## 5. Post-process if needed
+For exact wording: overlay text manually using black bold Arial/Helvetica/Impact, irregular sizes, slight rotations, and dense spacing.
 
 ## Prompt template
 
@@ -136,6 +147,16 @@ Before sending final image/prompt:
 - [ ] Text is bold, black, and high contrast.
 - [ ] Characters are sticker-like, not polished portraits.
 - [ ] If exact text matters, mention that final text overlay may be needed.
+- [ ] If AI image gen unavailable, fallback to PIL script (Path B).
+
+### 边界条件处理
+
+| 场景 | 处理方式 |
+|------|----------|
+| AI 渲染文字失败 | 生成空白底图 + PIL/Canva 手动叠加文字 |
+| ComfyUI 不可用 | 走路径B: PIL 脚本（无需 GPU） |
+| 用户无图像生成工具 | 输出纯 prompt + 推荐在线工具（Midjourney / DALL·E） |
+| 图像尺寸不符合预期 | 在 prompt 中指定宽高比，PIL 脚本可自定义画布尺寸 |
 
 ## Fast user intake
 
