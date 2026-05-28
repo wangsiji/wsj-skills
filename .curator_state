@@ -1,0 +1,9 @@
+{
+  "last_report_path": "/home/wangsiji/.hermes/logs/curator/20260523-175717",
+  "last_run_at": "2026-05-23T17:57:17.944824+00:00",
+  "last_run_duration_seconds": 72.997013,
+  "last_run_summary": "auto: no changes; llm: Consolidation is complete. Let me write the final summary.\n\n---\n\n## Curation Summary\n\n**1 cluster found** among the 5 agent-created skills.\n\n### Cluster: Info-Feed System (info-recommendation-system + qiuyu-content-ecosystem)\n\n`qiuyu-conten…\narchived 1 skill(s):\n  • qiuyu-content-ecosystem → info-recommendation-system\nfull report: hermes curator status\nkeep an umbrella stable: hermes curator pin info-recommendation-system",
+  "last_run_summary_shown_at": "2026-05-23T17:57:17.944824+00:00",
+  "paused": false,
+  "run_count": 3
+}

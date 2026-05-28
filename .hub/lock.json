@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "installed": {
+    "agent-reach": {
+      "source": "clawhub",
+      "identifier": "agent-reach",
+      "trust_level": "community",
+      "scan_verdict": "caution",
+      "content_hash": "sha256:574d64f2a3f36e35",
+      "install_path": "agent-reach",
+      "files": [
+        "SKILL.md",
+        "_meta.json"
+      ],
+      "metadata": {},
+      "installed_at": "2026-04-20T10:33:05.359558+00:00",
+      "updated_at": "2026-04-20T10:33:05.359587+00:00"
+    },
+    "ai-meme-collage": {
+      "source": "skills.sh",
+      "identifier": "skills-sh/thursdaycapital/meme-collage/ai-meme-collage",
+      "trust_level": "community",
+      "scan_verdict": "safe",
+      "content_hash": "sha256:a2f583c829decc55",
+      "install_path": "creative/ai-meme-collage",
+      "files": [
+        "SKILL.md"
+      ],
+      "metadata": {
+        "detail_url": "https://skills.sh/thursdaycapital/meme-collage/ai-meme-collage",
+        "repo_url": "https://github.com/thursdaycapital/meme-collage"
+      },
+      "installed_at": "2026-05-28T01:29:13.920107+00:00",
+      "updated_at": "2026-05-28T01:29:13.920139+00:00"
+    },
+    "darwin-skill": {
+      "source": "clawhub",
+      "identifier": "darwin-skill",
+      "trust_level": "community",
+      "scan_verdict": "safe",
+      "content_hash": "sha256:c167ad34a3d045bd",
+      "install_path": "darwin-skill",
+      "files": [
+        "assets/banner.svg",
+        "assets/chart-loop.html",
+        "assets/chart-phases.html",
+        "assets/chart-ratchet.html",
+        "assets/chart-rubric.html",
+        "docs/index.html",
+        "README.md",
+        "showcase.html",
+        "SKILL.md",
+        "_meta.json"
+      ],
+      "metadata": {},
+      "installed_at": "2026-05-28T09:09:32.094916+00:00",
+      "updated_at": "2026-05-28T09:09:32.094944+00:00"
+    }
+  }
+}

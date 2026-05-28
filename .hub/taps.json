@@ -1,0 +1,8 @@
+{
+  "taps": [
+    {
+      "repo": "Panniantong/agent-reach",
+      "path": "skills/"
+    }
+  ]
+}
