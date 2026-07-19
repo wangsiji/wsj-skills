@@ -63,7 +63,9 @@ G 推送/同步自建 skills 到远程仓库（含定时任务）
 
 - [ ] 待优化 skill 路径确认（`~/.hermes/skills/custom/<name>/SKILL.md`）
 - [ ] 当前备份已留存
-- [ ] 用户权限边界明确（新建须批准，修改已有不须）
+- [ ] 用户权限边界明确（**新建须批准，修改已有不须**）
+- [ ] **权限铁律复核**：除非用户本轮明确说"建/新建/批准新建 skill"，否则绝不新建——自改进机制自动沉淀的 skill 一律视为违规，用户确认后 `rm -rf`
+- [ ] 核查 skill 是否存在时用**全盘 `find ~/.hermes/skills`**，不只 `custom/`（自动建的常在 `creative/` 等其它 category）
 
 ## Post Check
 
@@ -80,6 +82,7 @@ G 推送/同步自建 skills 到远程仓库（含定时任务）
 - ❌ description 压成短句（应场景化长描述）
 - ❌ 凭证内联明文（用环境变量/keyring）
 - ❌ 删有效经验资产只为了压行数
+- ❌ 未经用户明确批准新建 skill（含自改进机制自动沉淀的）；误判"不存在"——核查 skill 须全盘 `find ~/.hermes/skills`，不只 `custom/`
 
 ## 引用导航
 

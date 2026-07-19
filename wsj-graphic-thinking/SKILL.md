@@ -23,6 +23,14 @@ metadata:
 4. 输出 `.excalidraw.md`（## Drawing + ```json + %% 结尾），不压缩不编码
 5. 洞察标注（Step 2.5）必加，图不是装饰是思考载体
 
+## Trigger Guard（强制 · 违反即违规）
+
+> 用户只要说出以下任一触发词，就**必须先用 `skill_view(wsj-graphic-thinking)` 加载本 skill**，走完整管线（思考蒸馏 → P1~P5 → 洞察层 → .excalidraw.md）。**禁止**直接用 `write_file` 手写 Excalidraw JSON 绕过本 skill——图画对了也不行，因为跳过了思考蒸馏与洞察层。
+
+触发词：画 / 可视化 / 图解 / 系统图 / 结构图 / 思维导图 / 画出来 / 关系图
+
+> 真实违规案例：用户说"画系统关系图"，agent 直接 `write_file` 手写 JSON 存成 `.excalidraw.md`。格式对、结构对，但无洞察层、无思考蒸馏——用户反问"没走 skills 吗"，确认违规。下次必须加载本 skill 走管线。
+
 ## Rule Priority（图形冲突时）
 
 | 优先级 | 规则 |
@@ -58,6 +66,7 @@ Step 4 输出 .excalidraw.md → 00-Attachments/Excalidraw/
 
 ## Pre-flight Check
 
+- [ ] 触发词出现时，已 `skill_view(wsj-graphic-thinking)` 加载本 skill（非裸 `write_file`）
 - [ ] 已思考蒸馏（非直出）
 - [ ] problem_type 已确定
 - [ ] abstraction_level 已定（low/middle/high）
@@ -76,6 +85,7 @@ Step 4 输出 .excalidraw.md → 00-Attachments/Excalidraw/
 - ❌ 每框塞长句（信息堆积）
 - ❌ 输出非 `.excalidraw.md` 格式（压缩/编码 JSON）
 - ❌ 无洞察标注的纯装饰图
+- ❌ 触发词出现却不加载本 skill，直接用 `write_file` 手写 Excalidraw JSON（绕过管线=违规）
 
 ## 引用导航
 
