@@ -1,0 +1,82 @@
+---
+name: {{ metaData.title }}
+description: {% set intro = metaData.intro | replace("\n","") | replace("\r","") %}{{ intro }}
+category:
+  - "[[33-学习]]"
+tags: [阅读, 微信读书/{{ metaData.category }}]
+author: [{{ metaData.author }}]
+publisher: {{ metaData.publisher }}
+publishTime: {{ metaData.publishTime }}
+source: {{ metaData.pcUrl }}
+cover: {{ metaData.cover }}
+---
+
+{% if metaData.cover %}
+![]({% if metaData.cover.indexOf("://") > -1 %}{{ metaData.cover }}{% else %}https://weread-cover.oss-cn-beijing.aliyuncs.com/{{ metaData.cover }}{% endif %})
+{% endif %}
+
+> 📖 **{{ metaData.title }}**
+> ✍️ {{ metaData.author }} · {{ metaData.publisher }}
+> 🏷 {% if metaData.category %}{{ metaData.category }}{% else %}未分类{% endif %}
+> {% if metaData.publishTime %}{{ metaData.publishTime }}{% endif %}
+
+## 📊 阅读统计
+
+| 项目 | 数据 |
+|------|------|
+| 书名 | {{ metaData.title }} |
+| 作者 | {{ metaData.author }}{% if metaData.translator %}（{{ metaData.translator }}）{% endif %} |
+| 出版社 | {{ metaData.publisher }} |
+| 分类 | {{ metaData.category }} |
+{% if metaData.publishTime %}| 出版时间 | {{ metaData.publishTime }} |{% endif %}
+{% if bookInfo.rating %}| 评分 | ⭐ {{ bookInfo.rating }} |{% endif %}
+
+## 📌 高亮划线（按章节）
+
+{% for chapter in chapterHighlights %}
+{% if chapter.chapterTitle %}
+> [!info]- {{ chapter.chapterTitle }} — {{ chapter.highlights.length }} 条划线
+>
+{% for highlight in chapter.highlights %}
+{% set rangeParts = highlight.range | split("-") %}
+{% set deeplink = "weread://bestbookmark?bookId=" + metaData.bookId + "&chapterUid=" + highlight.chapterUid + "&rangeStart=" + rangeParts[0] + "&rangeEnd=" + rangeParts[1] %}
+{% if syncPopularHighlightsToggle and highlight.isPopular %}
+> 📌🔥 [{{ highlight.markText | trim }}](<{{ deeplink }}>)  
+> 🔥 {{ highlight.popularCount }} 人共读 ^{{ highlight.bookmarkId }}
+>
+{% else %}
+> 📌 [{{ highlight.markText | trim }}](<{{ deeplink }}>)  ^{{ highlight.bookmarkId }}
+>
+{% endif %}
+{% endfor %}
+{% endif %}
+{% endfor %}
+
+## 💭 我的笔记
+
+{% set hasNotes = false %}
+{% for chapter in chapterHighlights %}
+{% for highlight in chapter.highlights %}
+{% if highlight.reviewContent %}
+{% set hasNotes = true %}
+> [!abstract]- {{ chapter.chapterTitle }} 的想法
+> {{ highlight.reviewContent }}
+>
+> > 📌 {{ highlight.markText | trim }}
+>
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% if not hasNotes %}
+> 暂无笔记。
+{% endif %}
+
+{% if bookReview.bookReviews %}
+{% for bookReview in bookReview.bookReviews %}
+## 📝 书评
+
+{{ bookReview.mdContent }}
+
+— {{ bookReview.createTime }}
+{% endfor %}
+{% endif %}

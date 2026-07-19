@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'paper': '#f5f0eb', 'paper-bg': '#e8e0d5', 'header-bg': '#3c3a37',
+        'accent': '#b8a088', 'divider': '#e0d5c8', 'text-summary': '#3c3a37',
+        'text-body': '#7a7062', 'text-aux': '#8a8072', 'text-footer': '#b0a898',
+        'header-title': '#f0ebe4', 'header-eng': '#a09888',
+        'header-num': '#8a8072', 'cog-bg': '#ede6dc',
+      }
+    }
+  }
+}
+</script>
+</head>
+<body class="bg-paper-bg min-h-screen flex items-center justify-center p-4 font-sans">
+  <div class="w-full max-w-[640px] rounded-sm overflow-hidden shadow-lg">
+    <!-- HEADER -->
+    <div class="bg-header-bg h-32 px-8 flex flex-col justify-center border-b-2 border-accent" style="border-bottom-color: #b8a088;">
+      <div class="flex items-center gap-3 mb-1">
+        <span class="text-xs font-bold tracking-[0.2em] text-accent px-2 py-0.5 border border-accent rounded-sm">TAG</span>
+        <span class="text-xs tracking-wider text-header-num">NO.001</span>
+      </div>
+      <h1 class="text-3xl font-black text-header-title leading-tight">标题</h1>
+      <p class="text-xs tracking-[0.3em] text-header-eng mt-1">SUBTITLE</p>
+    </div>
+    <!-- BODY -->
+    <div class="bg-paper px-8 py-8 space-y-6">
+      <!-- 摘要 -->
+      <div class="flex gap-3">
+        <div class="w-1 shrink-0 rounded-sm" style="background-color: #b8a088;"></div>
+        <div><p class="text-sm font-bold text-text-summary leading-relaxed">摘要文字</p></div>
+      </div>
+      <!-- 机制（可选，无内容时移除整块） -->
+      <div class="bg-cog-bg rounded px-4 py-3">
+        <p class="text-xs leading-relaxed text-text-body">机制解释</p>
+      </div>
+      <!-- 行动组（对比布局时替换为对比分区） -->
+      <div class="bg-paper rounded px-4 py-4 space-y-3" style="background-color: rgba(184, 160, 136, 0.06);">
+        <h3 class="text-sm font-bold text-text-summary tracking-wide">◈ 行动指南</h3>
+        <div class="space-y-2">
+          <div class="flex gap-2 text-xs text-text-body">
+            <span class="font-bold text-accent shrink-0 w-4">①</span>
+            <span><strong class="text-text-summary">行动名</strong> — 描述</span>
+          </div>
+        </div>
+      </div>
+      <!-- 金句 -->
+      <div class="text-center pt-2">
+        <p class="text-xs italic text-text-aux leading-relaxed px-4">"金句"</p>
+      </div>
+    </div>
+    <!-- FOOTER -->
+    <div class="bg-paper px-8 pb-4 flex justify-end">
+      <p class="text-[10px] tracking-wider text-text-footer">BY 作者名</p>
+    </div>
+  </div>
+</body>
+</html>

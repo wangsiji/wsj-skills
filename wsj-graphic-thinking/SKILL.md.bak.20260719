@@ -1,0 +1,115 @@
+---
+name: graphic-thinking
+description: 将案例/笔记/问题转换为结构化图解。自动匹配树状图/流程图/深挖图/系统图等，生成Obsidian Excalidraw图形。触发词：画图、图解、可视化、diagram、visualize、画出来、生成图、把这篇笔记画出来
+version: 2.1.0
+author: siji
+trigger_intent:
+  - 用户要求理解复杂关系
+  - 用户要求分析系统/总结结构
+  - 用户要求找原因/复盘
+  - 用户要求比较方案/对比
+  - 用户要求规划路径/制定计划
+  - 用户要求可视化/画图
+  - 用户对某个概念说"画出来"
+---
+
+# Graphic Thinking Agent
+
+输入案例/笔记/问题 → 思考蒸馏 → 图形决策 → 可视化 → 审查 → Obsidian 知识资产
+
+主流程（7步），详细规则在 `references/` 下，需用时加载。
+
+---
+
+## Step 0：意图判断
+
+检查是否为触发场景。支持被动触发词 AND/OR 主动 trigger_intent 匹配。
+
+## Step 1：接收输入
+
+用户输入形式：案例/问题/知识卡片文件名。如果触发知识卡片模式，加载 `references/knowledge-card.md`。
+
+## Step 1.5：思考蒸馏
+
+输出结构化中间 JSON：
+
+```json
+{
+  "topic": "",
+  "problem_type": "causal_analysis | process_mapping | comparison | classification | strategy_planning | value_exchange | overlap_analysis | system_mapping | timeline",
+  "entities": [],
+  "relations": [{"from": "", "to": "", "type": ""}],
+  "goal": "",
+  "abstraction_level": "low | middle | high",
+  "constraints": []
+}
+```
+
+**abstraction_level 决定视角范围：**
+- `low` → 具体要素（树状图/流程图/时间线）
+- `middle` → 结构关系（深挖图/比较图/交换图/重叠图）
+- `high` → 系统整体（系统图/金字塔图）
+
+## Step 2：图形决策
+
+优先级系统（详见 `references/graph-selection.md`）：
+
+```
+P1 用户明确指定 → 直接用
+P2 关键词匹配 → problem_type 映射
+P3 关系类型匹配
+P4 实体数量 → 5+推系统图/树状图
+P5 兜底树状图
+```
+
+若多图冲突，展示方案给用户确认，否则走递进图策略。
+
+## Step 2.5：洞察提取
+
+生成前先提取：
+
+- 核心发现：这个问题的本质是什么？
+- 隐藏关系：哪些关系在表层之下？
+- 关键矛盾：矛盾点/冲突点在哪？
+- 下一步行动：这个图引导什么行动？
+
+洞察结果作为图形底部的标注框。
+
+## Step 3：生成 Excalidraw 文件
+
+格式、字体、容器绑定 → `references/excalidraw.md`
+
+调色板、模板参数 → `references/templates.md`
+
+节点数限制（按图形类型区分）→ `references/graph-selection.md`
+
+## Step 3.5：多图形协作
+
+策略：主图+副图 / 多角度序列 / 组合图 / 递进图
+
+## Step 3.8：质量审查
+
+```
+□ 核心问题：是否回答用户原问题？
+□ 信息堆积：每框≤10字？
+□ 节点数量：在图形类型默认范围？
+□ 孤立节点：无孤立节点
+□ 视觉焦点：3秒理解
+□ 洞察标注：Step 2.5的洞察已添加？
+□ 容器绑定：全部 containerId
+```
+
+## Step 4：输出
+
+- 保存 `.excalidraw.md` 到 `00-Attachments/Excalidraw/`
+- 输出 Markdown 图解说明
+- 若来自知识卡片模式，frontmatter 回链源卡片
+
+---
+
+**快速入口：**
+- 图形选择规则 → `skill_view(name='graphic-thinking', file_path='references/graph-selection.md')`
+- Excalidraw 格式 → `skill_view(name='graphic-thinking', file_path='references/excalidraw.md')`
+- 知识卡片集成 → `skill_view(name='graphic-thinking', file_path='references/knowledge-card.md')`
+- 使用示例 → `skill_view(name='graphic-thinking', file_path='references/examples.md')`
+- 图形模板 → `skill_view(name='graphic-thinking', file_path='references/templates.md')`

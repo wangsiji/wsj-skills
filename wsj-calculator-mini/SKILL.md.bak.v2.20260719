@@ -1,0 +1,580 @@
+---
+name: wsj-miniprogram
+description: 富足人生微信小程序开发维护：当用户要求开发/优化「富足人生」微信小程序（FIRE 计算器等工具）时使用。uni-app + Vue3 + TS，项目路径 ~/projects/wsj-miniprogram。覆盖编码、构建、小程序上传。
+tags: [wechat-miniprogram, uni-app, vue3, typescript, setup, optimization]
+related_skills: []
+version: 1.0.0
+author: siji
+license: MIT
+platforms: [linux, macos, windows]
+metadata:
+  hermes:
+    tags: [wechat-miniprogram, uni-app, vue3, typescript]
+    category: dev
+
+---
+
+# 富足人生小程序
+
+## When to Use
+
+- 用户要求开发/维护"富足人生"微信小程序（FIRE 计算器等）
+- uni-app + Vue3 + TS 相关编码、构建、优化
+- 项目路径：`~/projects/wsj-miniprogram`
+
+## Prerequisites
+
+- Node.js + HBuilderX 或 CLI 构建环境
+- 微信开发者工具（预览/上传）
+
+---
+
+
+> 合并自：`wsj-miniprogram` / `uniapp-miniprogram-setup` / `uniapp-miniprogram-optimization`
+> 项目路径：`~/projects/wsj-miniprogram`
+
+---
+
+## 一、项目本身
+
+### 基本信息
+
+- AppID: wxb6514fa4040c41d8
+- 项目路径: ~/projects/wsj-miniprogram
+- 技术栈: uni-app + Vue 3 + TypeScript
+- 代码模型: DeepSeek
+- 构建产物: `dist/build/mp-weixin/`
+
+### 目录结构
+
+```
+wsj-miniprogram/
+├── src/
+│   ├── App.vue              # 全局样式 + 启动屏
+│   ├── main.ts              # SSR App 入口
+│   ├── pages.json           # 路由 + 导航配置（custom nav bar）
+│   ├── manifest.json        # 微信 appid 等
+│   ├── pages/index/
+│   │   └── index.vue        # 主页面：模式切换 / 表单 / 结果 / 明细
+│   ├── components/
+│   │   ├── ModeSelector.vue     # 5 模式横向滚动 tab
+│   │   ├── InputForm.vue        # 表单：分组布局 + 频率选择 + 时机
+│   │   ├── ResultSummary.vue    # 结果主卡 + 三列小字
+│   │   ├── PieChart.vue         # SVG 饼图（本金/投入/收益占比）
+│   │   ├── YearlySchedule.vue   # 年度明细表（默认折叠，含进度条）
+│   │   └── MonthlySchedule.vue  # 月度明细表（默认折叠，上限 120 月）
+│   └── utils/
+│       ├── types.ts             # 类型定义 + 模式标签/频率选项
+│       ├── calc.ts              # TVM 核心引擎（5 个求解器 + 明细生成）
+│       ├── validate.ts          # 表单校验
+│       └── format.ts            # 数值格式化（万/亿 + 年月转换）
+├── .gitignore
+├── package.json
+├── vite.config.ts
+└── README.md
+```
+
+### 当前功能
+
+- FIRE 计算器（第一个工具，已上线）
+- 后续扩展更多工具
+
+### 开发命令
+
+```bash
+cd ~/projects/wsj-miniprogram
+
+# 安装依赖
+npm install
+
+# 开发模式（热更新）
+npm run dev:mp-weixin
+
+# 生产构建
+npm run build:mp-weixin
+
+# 构建（后台运行，避免前台超时）
+node_modules/.bin/uni build -p mp-weixin > /tmp/uni_build.log 2>&1
+cat /tmp/uni_build.log
+```
+
+构建产物在 `dist/build/mp-weixin/`，用微信开发者工具导入该目录即可预览。
+
+### 提交规范
+
+- 改完后必须 commit + push
+- 提交 `src/` + `dist/` 构建产物
+- `.gitignore` **不要**排除 `dist/`
+
+### 计算引擎
+
+#### 核心原理
+
+统一**月复利**计息，但定投频率可变。每个频率的周期利率由年化收益率（EAR）换算：
+
+```
+周期利率 = (1 + EAR)^(1 / 每年期数) - 1
+```
+
+⚠️ **EAR vs 名义利率陷阱**：calculator.net 和大多数金融计算器使用**有效年利率（EAR）**。给定年利率 r%，每期利率 = `(1 + r/100)^(1/compound) - 1`，**不是** `r/100/compound`。后者是名义利率，在当前利率下误差约 2.6%（月复利时：0.5% vs 0.4868%）。
+
+#### 5 种模式
+
+| 模式 | 标签 | 求解目标 | 定投频率 |
+|------|------|---------|---------|
+| `endAmount` | 养老金 | 终值 FV | 每周 / 每月 / 每年 |
+| `startAmount` | 初始额 | 初始本金 PV | 无 |
+| `contribution` | 定投额 | 每期投入 PMT | 每周 / 每月 / 每年 |
+| `rate` | 收益率 | 年化收益率 R | 每周 / 每月 |
+| `years` | 年限 | 投资年限 N | 每周 / 每月 |
+
+PITFALL — 模式切换时的频率泄漏（通用）：ModeSelector 用 v-model 只更新 activeMode，不触发 form 更新。从其他模式切到有不同频率选项的模式时，`form.contribFreq` 可能保留旧值。`calculate()` 中用 `const sFreq = freq || 'monthly'` 做兜底，但若旧值恰好是合法值（如 'yearly'），兜底无效。**修复模式**：对于有特定频率要求的模式，在 `calculate()` 分支内显式声明频率，不依赖 `sFreq`。定投额模式已改为用户可选频率（每周/每月/每年），`InputForm` 显示频率选择但隐藏金额输入，结果卡片同时显示每年/每月/每周三行，通过所选频率的 PMT 归一化换算。
+
+PITFALL — 定投额结果多行展示的归一化陷阱：结果卡片三行（每年/每月/每周）必须从**统一月均基准**推导。`solvedValue` 是按所选频率的每期 PMT（选年则值是年额、选月则月额、选周则周额），直接放入"每月"行会出错。正确做法：先归一化 → `normMonthly = freq='yearly' ? solvedValue/12 : freq='weekly' ? solvedValue*52/12 : solvedValue`，再 `fmtYearly = normMonthly*12`、`fmtWeekly = normMonthly*12/52`。
+
+#### 求解器
+
+| 函数 | 方法 | 说明 |
+|------|------|------|
+| `calcFV` | 封闭公式 | PV、PMT、r、n → 终值 |
+| `calcPV` | 封闭公式 | FV、PMT、r、n → 本金 |
+| `calcPMT` | 封闭公式 | PV、FV、r、n → 每期投入 |
+| `calcRate` | Newton 法 | 导数逼近，100 次迭代 |
+| `calcYears` | 二分法 | 搜索区间 0.01–100 年 |
+
+所有公式已对标 calculator.net 基准数据验证。**修完 bug 后必须做数值验证**：
+
+```bash
+node /tmp/test_calc.js
+# 基准：PV=20000, R=6%, N=10y, PMT=1000, 月末 → FV=198,290.40
+```
+
+#### SG 面积图（v-html 渲染）
+
+⚠️ **SVG `<line>` 元素禁止重复属性**：Vue 模板中用 `v-for` 渲染多条 line 时，两个端点坐标必须分别用 `:y1` + `:y2`，不能给同一元素绑定两次 `:y1`。
+
+```ts
+// 错误 ❌ — Duplicate attribute y1
+<line :x1="padX" :y1="..." :x2="W" :y1="..." ... />
+
+// 正确 ✓
+<line :x1="padX" :y1="..." :x2="W" :y2="..." ... />
+```
+
+### 常见问题
+
+- **npm install peer dependency warnings**：不用管
+- **vite build 前台模式报错**：必须用后台模式
+- **编译报 "Unexpected token"**：通常是 Vue 模板里的语法错误，从可疑函数逐段注释排查
+- **小程序不显示内容**：检查 `pages.json` 的 `globalStyle.navigationStyle` 是否设为 `custom`
+
+---
+
+## 二、项目搭建（Setup）
+
+从零开始搭建 UniApp + Vue3 项目，输出微信小程序。
+
+### 项目初始化
+
+#### 1. 创建项目目录
+
+```bash
+mkdir -p miniprogram/src/{pages/index,components,utils}
+```
+
+#### 2. package.json
+
+```json
+{
+  "name": "xxx-mini",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:mp-weixin": "uni build -p mp-weixin"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-xxx",
+    "vue": "^3.4.21",
+    "pinia": "^2.1.7"
+  },
+  "devDependencies": {
+    "@dcloudio/vite-plugin-uni": "3.0.0-xxx",
+    "@dcloudio/types": "^3.4.8",
+    "vite": "^5.2.8",
+    "sass": "^1.77.0"
+  }
+}
+```
+
+#### 3. vite.config.ts
+
+```ts
+import { defineConfig } from 'vite'
+import uni from '@dcloudio/vite-plugin-uni'
+
+export default defineConfig({
+  plugins: [uni()]
+})
+```
+
+#### 4. 核心文件
+
+- `src/main.ts` — SSR App 入口
+- `src/App.vue` — 根组件
+- `src/pages.json` — 页面路由配置
+- `src/manifest.json` — App/小程序配置（**AppID 在这里改**）
+- `src/pages/index/index.vue` — 首页
+
+#### 5. 安装依赖
+
+```bash
+npm install
+```
+
+#### 6. 构建
+
+```bash
+node_modules/.bin/uni build -p mp-weixin > /tmp/uni_build.log 2>&1
+```
+
+#### 7. 微信开发者工具导入
+
+1. 下载微信开发者工具
+2. 导入目录：`dist/build/mp-weixin`
+3. AppID 在 `src/manifest.json` → `mp-weixin.appid`
+
+### uni-app import 路径约定
+
+```ts
+// 从 src/pages/index/index.vue：
+import { calcFV } from '../../utils/calc'
+import ModeSelector from '../../components/ModeSelector.vue'
+
+// 从 src/components/Xxx.vue：
+import type { CalcMode } from '../utils/types'
+import { fmt } from '../utils/format'
+```
+
+> ⚠️ 路径层级错误是编译失败的第一常见原因。`pages/index/` 到 `src/` 需要 `../../`，`components/` 到 `src/` 需要 `../`。
+
+### Vue SFC 命名冲突
+
+当组件名与类型接口名相同时，用别名导入：
+
+```ts
+import ResultSummary from '../../components/ResultSummary.vue'
+import type { ResultSummary as IResultSummary } from '../../utils/types'
+```
+
+### pages.json 必须配置项
+
+- `pages` 数组的第一个元素必须是 tabBar 页面（如果有 tabBar）
+- 单页面应用不要配置 `lazyCodeLoading: "requiredComponents"`（已知导致生产环境 `ref is not defined`）
+- import 路径：注意层级正确
+
+### 已有项目添加新页面
+
+1. 创建 `src/pages/<page>/<page>.vue`
+2. 在 `pages.json` 的 `pages[]` 中注册路由
+3. 重新构建
+4. 微信开发者工具中刷新
+
+> ⚠️ pages.json 注册了路由但文件不存在，构建时不会报错，但运行时页面会 404。
+
+### TabBar 架构变更（3→2 tab）
+
+步骤：
+1. **pages.json** — 修改 `tabBar.list`，去掉对应 entry
+2. **pages 数组顺序** — `pages[]` 的**第一个元素必须是 tabBar 页面**，否则 tabBar 完全不显示
+3. **子页面返回按钮** — 用自定义导航栏
+
+> ⚠️ **致命陷阱**：`uni.navigateBack()` 在页面栈为空时静默失败。正确做法：
+> ```ts
+> function goBack() {
+>   const pages = getCurrentPages()
+>   if (pages.length > 1) uni.navigateBack()
+>   else uni.switchTab({ url: '/pages/tools/tools' })
+> }
+> ```
+
+### TabBar 图标生成
+
+⚠️ **纯色占位符 PNG 会被微信编译器拒绝**：
+
+```python
+from PIL import Image, ImageDraw, ImageFont
+def make_icon(emoji, color_rgb, active):
+    img = Image.new('RGBA', (81, 81), (20, 20, 30, 255))
+    draw = ImageDraw.Draw(img)
+    bg_color = (*color_rgb, 40) if active else (39, 39, 48, 255)
+    draw.ellipse([14, 14, 67, 67], fill=bg_color)
+    font = ImageFont.truetype('/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf', 36)
+    text_color = (*color_rgb, 255) if active else (180, 180, 190, 255)
+    draw.text((40, 40), emoji, font=font, anchor='mm', fill=text_color)
+    return img
+```
+
+### 全局错误处理（utils/toast.ts）
+
+```ts
+export function toast(title: string, icon: 'success' | 'error' | 'none' = 'none') {
+  uni.showToast({ title, icon, duration: 2000 })
+}
+export function handleError(err: any, context = '') {
+  uni.getNetworkType({
+    success: (res) => {
+      if (res.networkType === 'none') toast('网络已断开', 'none')
+      else toast(`${context}失败`, 'none')
+    }
+  })
+}
+export function safeGetStorage<T>(key: string, fallback: T): T {
+  try { const raw = uni.getStorageSync(key); return raw ? JSON.parse(raw) : fallback }
+  catch { return fallback }
+}
+```
+
+### 依赖版本（2026-04 实测可用）
+
+- uni-app: `3.0.0-4060620250520001`
+- vue: `^3.4.21`
+- pinia: `^2.1.7`
+- vite: `^5.2.8`
+- sass: `^1.77.0`
+
+---
+
+## 三、开发优化（Optimization）
+
+### 开发原则
+
+**先独立交付，再迭代**：开发第一版时不提问自己做决定，完成后用户 review 再迭代。不要一直问用户确认每个细节。
+
+### 诊断优先
+
+用户说"小程序有问题"时，按以下顺序系统排查：
+
+```bash
+# 0. 先构建确认能编译
+cd /home/wangsiji/projects/wsj-miniprogram && npm run build:mp-weixin
+
+# 0.5 检查 build 产物是否最新
+stat dist/build/mp-weixin/app.js | grep Modify
+stat src/pages/index/index.vue | grep Modify
+
+# 1. pages.json 注册完整性
+find src/pages -name '*.vue' | while read f; do
+  p=$(echo "$f" | sed 's|src/||;s|\.vue$||')
+  grep -q "$p" src/pages.json || echo "❌ 未注册: $p"
+done
+
+# 2. v-html + SVG — 小程序 rich-text 不支持 SVG，图表会白屏
+grep -rn 'v-html' src/ && echo "⚠️ 检查是否有 SVG v-html"
+
+# 3. goBack() fallback — 跳转目标是否有效
+grep -rn 'navigateBack\|switchTab' src/
+
+# 4. tabBar 配置 — 图标是否存在？
+grep -A5 'tabBar' src/pages.json
+
+# 5. App.vue — 用 <slot /> 而非 <router-view />
+grep 'router-view' src/App.vue && echo "❌ 必须用 <slot />"
+```
+
+### 精简策略：删除多余页面
+
+顺序不能乱：
+1. 修改 `pages.json`：只保留目标页面，删除 tabBar 配置
+2. 迁移页面文件
+3. 修改 `App.vue`：去掉 tabBar 相关内容
+4. 删除无用依赖（pinia、utils/、static/tabbar/）
+5. 修改 `manifest.json`
+6. 添加 .gitignore
+7. 构建验证
+8. git commit（提交 src/ + dist/ 构建产物）
+
+### 页面结构规范
+
+#### 微信小程序头部标题标准做法
+
+```json
+// pages.json
+{ "globalStyle": { "navigationStyle": "custom" } }
+```
+
+```vue
+<template>
+  <view class="header" :style="{ paddingTop: statusBarHeight + 'px' }">
+    <text class="title">FIRE 计算器</text>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { ref } from 'vue'
+const statusBarHeight = ref(0)
+try {
+  const info = uni.getSystemInfoSync()
+  statusBarHeight.value = (info.statusBarHeight || 44) + 12
+} catch {}
+</script>
+
+<style>
+.header {
+  position: sticky; top: 0; z-index: 100;
+  padding: 0 24rpx 24rpx; text-align: center;
+  background: #0F1419;
+  border-bottom: 2rpx solid rgba(255, 255, 255, 0.06);
+}
+.title {
+  display: block; font-size: 36rpx; font-weight: 800;
+  color: #fff; letter-spacing: 2rpx;
+}
+</style>
+```
+
+#### 启动屏（App.vue）
+
+⚠️ **P1 陷阱**：`onLaunch` 中立即设置 `ready.value = true` 的启动屏是**死代码**。如需启动动画，用 `setTimeout` 延迟：
+
+```vue
+onLaunch(() => {
+  setTimeout(() => { ready.value = true }, 1500)
+})
+```
+
+单页面计算器类应用**直接删除启动屏**：
+
+```vue
+<script setup lang="ts"></script>
+<template><view class="app"><slot /></view></template>
+```
+
+> ⚠️ 不要在 App.vue 写 `<router-view />`（小程序里不存在，会导致白屏超时 `Error: timeout`）。
+
+### 常见 Bug 模式
+
+#### 1. navigateBack 无 fallback
+**症状**：页面栈只有 1 个时 `uni.navigateBack()` 静默失败。
+**修复**：检查页面栈长度，有 fallback。
+
+#### 2. v-html 注入 SVG — touch 事件不生效
+**症状**：十字光标 touch 交互无反应。
+**根因**：`rich-text` 不支持元素级事件绑定。
+**修复**：touch 绑在父容器，用 `currentTarget` 获取坐标：
+
+```vue
+<view class="chart-wrap"
+  @touchstart="onCompareTouch"
+  @touchmove="onCompareTouch"
+  @touchend="onCompareEnd">
+  <rich-text :nodes="compareSvg" />
+</view>
+```
+
+#### 3. lazyCodeLoading 导致 `ref is not defined`
+**修复**：从 `pages.json` 删除 `lazyCodeLoading` 字段。
+
+#### 4. App.vue 使用 `<router-view />` 白屏
+**症状**：开发者工具编译超时、白屏。
+**修复**：用 `<slot />` 替代。
+
+#### 5. Vue 文件 patch 破坏 SFC 结构
+**规则**：结构性改动 → 直接 `write_file` 完整文件。小的纯文本替换才用 patch。
+
+#### 6. template 拼写错误
+- `{{ article.author}}` 多余空格
+- 动态 class 写成 `:class="'today'"` 而非 `:class="{ 'today': condition }"`
+- `@click` 内联注释导致构建失败
+
+#### 7. 模式切换后 form 频率泄漏
+**症状**：切模式后计算结果数值明显偏大/偏小，频率选择器消失或置灰。
+**根因**：`ModeSelector` 只更新 `activeMode`（v-model），不通过 `updateForm` 触发频率 auto-fix。`form.contribFreq` 保留上一种模式的值。
+**修复**：在 `calculate()` 的目标模式分支内显式声明频率（如 `const freq = 'monthly' as ContribFreq`），不依赖 `sFreq`。或给 `activeMode` 加 watcher 自动修正 `form.contribFreq`。
+
+### 设计规范
+
+#### 导航栏统一规范
+
+```css
+.nav-bar { height: 44px; display: flex; align-items: center; padding: 0 20px; border-bottom: 1px solid #161618; }
+.back-btn {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: #141416; border: 1px solid #1e1e22;
+  border-radius: 8px; font-size: 20px; color: #fafafa;
+}
+.nav-title { font-size: 16px; font-weight: 700; color: #fafafa; margin-left: 8px; }
+```
+
+#### 全局样式
+
+```css
+page {
+  background-color: #0a0a0f;
+  color: #e4e4e7;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+}
+button::after { border: none; }
+::-webkit-scrollbar { display: none; }
+```
+
+#### 计算器类 UI 通用模式
+
+**空状态引导**：首次打开时不要显示空白表单，加引导提示。
+
+**Input/Result 分离**：计算结果不要写回输入框。结果只存入 `resultSummary`，输入框不受影响。当求解目标本身就是输入字段时，**隐藏整个输入段**而非只禁用字段。
+
+**solvedValue**：`ResultSummary` 新增 `solvedValue` 字段，按模式展示正确答案（终值/本金/月投入/收益率%/年限年）。
+
+**totalContrib 公式**：`totalContrib = PMT * years * periodsPerYear`。
+
+**localStorage 持久化**：表单数据自动保存，退出再进不丢失。
+
+**重置功能**：一键恢复默认值，挂页脚文字防误触。
+
+### 上线前检查清单
+
+#### 基础检查
+- [ ] Build 无报错
+- [ ] dist/ 构建产物已提交
+- [ ] pages.json 配置正确（无 `lazyCodeLoading`）
+- [ ] 无 template 拼写错误
+- [ ] 无重复 `<script>` 块
+- [ ] 导航栏样式统一
+
+#### 工程与性能检查
+- [ ] **死代码**：App.vue 启动屏是否 `onLaunch` 秒关 → 删除
+- [ ] **console.log**：生产中无调试输出
+- [ ] **包体积**：单页 app 应 < 300KB
+- [ ] **大数据上限**：genSchedule 类函数有 maxCount 参数
+- [ ] **动态 label 正确性**：所有文案随频率/模式联动
+- [ ] **基准验证**：对比 calculator.net 验证 5 种模式 ✅
+- [ ] **构建验证**：`git status dist/` 无残留
+
+---
+
+## 四、参考文档
+
+### Bug 清单
+- [高发 Bug 清单 (2026-05-14)](references/wsj-miniprogram-bugs-20260514.md)
+- [高发 Bug 清单 (2026-05-27)](references/wsj-miniprogram-bugs-20260527.md)
+- [高发 Bug 清单 (2026-05-29)](references/wsj-miniprogram-bugs-20260529.md)
+- [uniapp dynamic handler bug + pages[0] 致命问题](references/uniapp-dynamic-handler-bug.md)
+
+### 项目结构
+- [秋秋开心小程序 v4 项目结构](references/qiuqiu-miniprogram-v4-structure.md)
+- [秋秋开心小程序 v3 项目结构](references/qiuqiu-miniprogram-v3-structure.md)
+
+### 工作流
+- [Git Workflow](references/git-workflow-wsj-miniprogram.md)
+- [原型部署与 Telegram 分享](references/prototype-deploy-telegram.md)
+- [自检脚本](scripts/verify-preview.py)
+- [TabBar 图标生成](scripts/gen-tabbar-icons.py)
+
+### 设计与优化
+- [UI 设计规范](references/ui-design-system.md)
+- [UI Design Tokens](references/ui-design-tokens.md)
+- [WXML 图表模式](references/wxml-chart-patterns.md)
+- [100 项优化检查清单](references/100-optimization-checklist.md)
+- [竞品分析工作流](references/competitive-analysis-workflow.md)

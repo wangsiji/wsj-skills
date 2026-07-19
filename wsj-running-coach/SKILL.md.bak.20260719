@@ -1,0 +1,409 @@
+---
+name: running-coach
+description: 跑步教练 — 统一入口：COROS 数据获取 + 每日训练反馈 + 阶段性计划。服务于马拉松破3目标。
+triggers:
+  - 跑步
+  - 训练
+  - 配速
+  - 心率
+  - 马拉松
+  - 破三
+  - 间歇
+  - 乳酸阈
+  - 跑步教练
+  - 教练日报
+---
+
+# Running Coach — 跑步教练
+
+> **文档结构**：本文是决策逻辑主线，只留分支与判断。所有工具细节、数据表、API 参考已按职责拆分到 `references/`，按需 `read_file` 对应文件。
+> 心率分区 / 12周计划 / 体重数据 等见下方「文档导航」。
+
+## 文档导航（references/）
+
+| 文件 | 内容 | 何时读 |
+|------|------|--------|
+| `heart-rate-zones.md` | 心率分区对照（LTHR 171基准）+ 配速区间 | 判断训练强度区 / 灰色区漂移 |
+| `running_general.md` | 跑步通用原则（80/20、配速、伤防、赛事） | 训练规则理论底座 |
+| `12week-plan-2026.md` | 用户真实 12 周半马计划（COROS OCR 确认） | 阶段/周跑量/质量课布局参考 |
+| `vdot-prediction.md` | VDOT 等效表 + 成绩预测 | 用户问"XX时候能跑多快" |
+| `screenshot-parsing.md` | 截图解析：类型A乳酸阈/类型B周计划OCR + Obsidian Tasks 写入 | 用户发 COROS 截图 |
+| `coros-api.md` | COROS Web/Mobile API 参考 + 已知陷阱 | 逆向/调试数据获取 |
+| `coros-mcp.md` | coros-mcp 备用获取：安装/cron限制/程序化调用 | Playwright 失败时兜底 |
+| `tooling-details.md` | 程序化调用代码片段（coros-mcp cron 用法） | 写数据获取脚本时 |
+| `body-composition.md` | COROS 无体重说明 + 体脂秤探测结论 | 用户问体重数据获取 |
+| `xiaomi-scale-extraction.md` | 小米体脂秤提取全流程（结论：全不可用） | 体重方案排查档案 |
+
+**vault 健康主线（真相源，不在本 skill 内）：**
+- `~/projects/wsj-second-brain/10-健康.md` — 健康 MOC（指标仪表盘/决策记录）
+- `~/projects/wsj-second-brain/02-Areas/11-运动.md` — 运动领域（训练链接总入口）
+- `~/projects/wsj-second-brain/01-Projects/Routine/年底三目标训练总表.md` — 破三+减重+肩带整合方案
+- `~/projects/wsj-second-brain/03-Resources/Notes/运动周追踪表.md` — **日报/体重/肩带写回处**
+
+统一入口，整合了：
+- **数据获取**：COROS 手表活动抓取
+- **训练分析**：基于运动科学的训练评估
+- **教练反馈**：每日训练日报 + 明日建议
+
+---
+
+## 执行流程
+
+根据用户输入走不同分支：
+
+```
+用户说"今天训练怎么样"或 cron 触发日报
+  → 获取最近7天数据 → 生成完整日报
+  → 输出：日报模板格式 + 灰色区分析
+
+用户说"明天要跑X测试/比赛"
+  → 检查里程碑 → 生成测试周计划
+  → 输出：倒计时安排 + 配速策略 + 热身补给清单
+
+用户说"最近下雨/感冒/膝盖疼"
+  → 判断风险等级 → 调整方案
+  → 输出：训练调整建议 + 恢复条件
+
+用户说"我的里程碑进度/10km跑多少"
+  → 查当前里程碑 → 计算剩余天数
+  → 输出：进度报告 + 下一步建议
+```
+
+**每次执行前必须拉最新数据**，不可用缓存。
+
+---
+
+
+## 用户核心数据
+
+> ⚠️ 最后刷新：2026-07-18。每次季度复盘或重大测试后必须更新本节。
+
+| 项目 | 值 |
+|------|-----|
+| 目标 | 2026.12 南宁马拉松破3（<3:00，配速 4'15"/km 内） |
+| 全马 PB | **3:36**（2025-12 三亚），破三需再快 36min |
+| 当前 VDOT | 53（5/31 10km 测试 43'51"，对应全马 ~3:08） |
+| 破三所需 VDOT | **55+**（VDOT 55 全马 ≈3:01，需 55+ 才稳进 3:00） |
+| LTHR / Max HR | **171 / 191** bpm（2026/5/31 COROS） |
+| 阈配速 | **4'25"/km**（COROS 自动校准） |
+| 体重 | **79 kg / 158 斤**（目标 125 斤，减 33 斤） |
+| 设备 | COROS PACE 3 |
+| 时间约束 | 每天 8:20 前跑完（旅居大理，操场有单杠） |
+| 器械 | 弹力带 + 单杠（无哑铃） |
+
+> ⚠️ **真相源声明**：本段为用户数据快照（最后刷新 2026-07-18），仅供快速参考。**执行前务必先读 vault 健康主线**（`10-健康.md` + `年底三目标训练总表.md`）获取最新目标与状态——vault 才是权威，本段过期不更新不代表目标变更。
+
+> ✅ **2026-07-18 实测**：`coros-mcp auth`（region=asia）已认证，Web+Mobile 双 token 有效。`get_sleep_data` / `get_daily_metrics` 实测拿到真实睡眠分期（deep/light/REM/awake）、HRV（avg_sleep_hrv）、RHR、training_load、ATI/CTI。**旧"睡眠 API 不可用"结论已推翻**——仅 Web API `dashboard/query` 的 sleep 字段是缓存值，Mobile API 睡眠数据真实可用。
+
+**三目标（年底前 2026-12-20 收口，详见 `01-Projects/Routine/年底三目标训练总表.md`）：**
+1. **破三 <3:00** — 主线，最高杠杆是减重
+2. **减重 158→125 斤（-33斤）** — 过午不食 + 跑步造赤字；体重每降 1kg 配速快 ~3秒/km，33斤≈释放 50秒/km，是破三最高杠杆
+3. **肩带增肌改善溜肩** — 弹力带+单杠每周2×30min（肩袖外旋/侧平举/面拉/悬垂/引体），不抢跑步恢复
+
+**里程碑（常规训练 + 破3专项）：**
+
+| 里程碑 | 截止 | 目标 | 状态 |
+|--------|------|------|------|
+| M1 10km 测试 | 5月底 | < 48'00" | ✅ **43'51"** |
+| M2 半马比赛 | 8月底 | < 1:30'00" | ⏳ 未开始（待刷新） |
+| M3 30km 不掉速 | 10月中 | 4'15" 掉速 ≤ 10s/km | ⏳ 未开始 |
+| M4 赛前模拟 | 11月底 | 掉速 < 12s/km | ⏳ 未开始 |
+
+**心率分区（LTHR 171）：** 详见 `references/heart-rate-zones.md`（COROS 6区 vs 训练3区对照）
+
+| 区 | 名称 | 心率 | 体感 |
+|----|------|------|------|
+| E | 轻松跑 | 137–154（COROS Z2） | 可说话 |
+| ⚠️ 灰色区 | 假有氧 | 155–162（COROS Z3） | 不轻松也不吃力 |
+| T | 乳酸阈值 | 163–174（COROS Z4） | 吃力但稳 |
+| A/I/R | 间歇/冲刺 | ≥ 175（Z5+） | 非常吃力 |
+
+> **⚠️ 维护纪律（用户 2026-07-18 明确：skill 要干净、规范、不臃肿）**
+> - **核心数据必须季度刷新**：体重、VDOT、里程碑状态是教练反馈的锚。本次会话发现旧数据严重过期（体重写 71kg 实际 158斤、VDOT 目标 52 误标"已超"但破三需 55+）。每次重大测试（10km/半马/30km）或季度复盘后立即更新「用户核心数据」段，勿依赖会话记忆。
+> - **凭证绝不内联明文**：COROS 邮箱/密码从环境变量 `COROS_EMAIL` / `COROS_PWD` 读取。SKILL.md 内曾出现明文密码，已移除——未来任何脚本示例不得再写回明文。
+> - **三目标对齐**：本 skill 服务破三主线，但减重（过午不食）是破三最高杠杆（用户经验 1kg≈3秒/km），肩带增肌（溜肩）用弹力带+单杠。日报检查清单第 8/9 条已覆盖，修改时务必保留。
+
+## Skill 结构规范（适用于本库所有 custom skill）
+
+> 2026-07-18 用户要求整理 running-coach 后确立。同类 skill 维护照此执行。
+
+- **主文件只留决策逻辑**：执行分支、核心数据、规则、模板。工具细节 / 数据表 / API 参考下沉 `references/`，主文件用「详见 `references/xxx.md`」一行指针，不内联大段代码或 OCR 坐标表。
+- **references/ 每个文件必须 frontmatter**（`name` / `description`），便于检索。
+- **顶部文档导航表**：列出所有 reference 及其「内容 / 何时读」，作为单一维护点；底部同主题指针精简为一行，避免双源维护。
+- **去重双源**：重叠内容（API 端点、体重探测结论）只留一处权威源，其余指针指向它；同主题多版本（如计划「示例版」vs「确认版」）删冗余版，保留被引用的确认版。
+- **凭证安全**：账号密码一律环境变量读取，绝不内联明文。
+- **大文件重构用 Python 按 `## ` 整段移动**，避免 `read_file` 行号前缀污染 YAML frontmatter（本 skill 历史踩坑记录见「自动化」段）。
+- **孤儿文件零容忍**：新增 reference 必须在主文件或他处被引用；定期审计未引用文件。
+- **诊断顺序**：先校验 frontmatter 有效 → 所有引用文件存在（无断链）→ 无明文密码 → 脚本路径正确（custom/ 非 productivity/），再交付。
+- **拆分 SOP 速查**：详见 `references/_maintenance-sop.md`（整段切分步骤 + 已踩坑清单）。
+
+---
+
+## 训练规则速查
+
+**核心原则（80/20）：** 80% 跑量在 Z2（E区），20% 在 Z4+（T/I）。Z3（灰色区）不是日常训练区。
+> 理论底座详见 `references/running_general.md`（80/20、配速现实、伤防、赛事准备）。
+
+**灰色区（重点）：** 轻松跑心率 > 154（进到 Z3）= 既没练到有氧又没刺激阈值。降速到 5'30"+ 让心率进 Z2，哪怕配速慢也是进步。
+
+**硬性规则：**
+- 周跑量增幅 ≤ 10%，连增2周后减量1周
+- 高强度（T/I/A）后 ≥ 48h 恢复
+- 连续高强度、长跑 >16km 次日必须休息
+- 每周高强度 ≤ 2次
+- 每周至少 1–2 天完全休息
+- **肩带力量（溜肩改善）**：弹力带+单杠，每周≥2次、单次≤30min，安排在跑步后或休息日；不计入"高强度"，但避免与T/I课同日（防中枢疲劳）。旅居无哑铃时用自重/弹力带替代
+
+**周期：**
+```
+基础期 5–6月  45–65km/周  E跑+1次短ST
+建设期 7–8月  65–85km/周  LT+ST+长E
+巅峰期 9–11月 85–105km/周 M配速长跑+I/LT
+减量期 12月   50–70km/周  轻量M跑
+```
+
+**瓶颈转换（重要）：** 当前 VDOT 53 对应全马 ~3:08，但破三需 VDOT 55+，速度仍差一档；同时耐力底盘（周跑量/30km+长跑）是转化关键。瓶颈是"速度+耐力双缺口"，优先顺序：周跑量 > 连续训练天数 > 配速质量。周跑量低（如 ~20km/周）时即使 VDOT 达标也无法转化为全马成绩 —— 全程 42km 需要 30km+ 长跑积累和足够的周跑量底盘。指标：
+- 当前阶段优先顺序：周跑量 > 连续训练天数 > 配速质量
+- 建议先堆跑量再堆强度：即使降配速也要加到 40-50km/周后，再上强度
+- 里程碑 M3（30km 不掉速）是耐力真正检验点，需足够的月跑量垫底
+
+---
+
+
+## 日报输出
+
+### 模板
+
+```
+🏃 教练日报 | {日期} {星期}
+🌙 睡眠：{时长}h（自动·coros-mcp get_sleep_data，失败则口述）⚠️
+
+━━━ 里程碑 ━━━
+{名称} | 目标 {值} | 截止 {日期} | {状态}
+━━━━━━━━━━━━
+
+【今日训练】
+- {名称} | {距离} @ {配速} | HR {值} bpm（{区}）| TL {值}
+
+💬 点评
+{数据分析}
+
+📅 明日 | {类型}
+{建议}
+```
+
+### 自动检查清单（每次日报必过）
+
+1. **80/20 检查** — Z2(E区) TL占比 < 80% 则警告。测试/比赛周特殊处理：高强度日占比可超过20%是合理例外，但高强度后必须≥48h恢复，且测试次日只做恢复跑（非轻松跑），TL控制在30以内。
+2. **连续天数** — ≥4天强制建议休息
+3. **Z3灰色区漂移** — 轻松跑/恢复跑标记为灰色区(Z3) → 警告跑太快
+4. **里程碑** — 剩余≤14天标⏰并给出倒计时安排
+5. **高强度间隔** — 检查48h恢复规则是否满足
+6. **COROS HR区标签验证** — 比赛/测试跨步跑等高强度活动，即使COROS基于平均心率标记为"E区"，也要根据配速判断真实强度。全力10km测试（配速≈阈配速4'25"）平均心率偏低是正常现象（前1-2km心率爬升慢拉低均值），应判定为T区强度，不被"E区"标签误导。
+7. **训练频率检查** — 过去7天训练≤3次且连续休息≥2天 → 提示频率偏低，建议逐步增加到每周4-5次。休息日可安排3-5km恢复跑维持连续性，比完全休息好。
+8. **减重赤字检查** — 参考 `03-Resources/Notes/运动周追踪表.md` / `02-Areas/12-饮食.md`：用户目标 158→125斤。若用户口述体重，记录趋势；若连续2周无下降，提示检查隐形热量（坚果/水果/奶茶）或跑量不足。减重是破三最高杠杆（1kg≈3秒/km），优先级与跑步量并列。
+9. **肩带力量检查** — 用户目标改善溜肩（弹力带+单杠，无哑铃）。每周应≥2次肩带力量（肩袖外旋/侧平举/面拉/悬垂/引体），单次≤30min，放在跑步后或休息日，不造成中枢疲劳影响长跑。若周报显示肩带训练为0且跑步≥5次，提示插入。
+
+### 输出格式参考
+
+```json
+{
+  "date": "今天",
+  "sport": "8k轻松跑+6ST",
+  "dist": "10.58km",
+  "pace": "6'00\"",
+  "hr": 149,
+  "hr_zone": "Z2有氧耐力",
+  "tl": 117
+}
+```
+
+---
+
+
+## 数据获取
+
+**唯一可靠脚本：** `scripts/running_coach.py`（skills 内置，~55s 稳定）
+**不用：** `projects/running-page/sync_coros.py`（易超时）
+
+> 用户当前训练计划：详见 `references/12week-plan-2026.md`（COROS 12周半马计划，含阶段/周跑量/质量课布局）。API 底层参考：`references/coros-api.md`。
+
+```bash
+# 拉取最近7天数据（日报前必做）
+python3 /home/wangsiji/.hermes/skills/custom/running-coach/scripts/running_coach.py --days 7 --daily-report
+
+# 仅输出 JSON
+python3 /home/wangsiji/.hermes/skills/custom/running-coach/scripts/running_coach.py --days 7 --output /tmp/running_data.json
+
+# 读取 COROS 截图（替代 vision_analyze）
+python3 /home/wangsiji/.hermes/skills/custom/running-coach/scripts/coros_zone_reader.py /path/to/screenshot.jpg
+```
+
+### Python 调用
+
+```python
+import sys
+sys.path.insert(0, '/home/wangsiji/.hermes/skills/custom/running-coach/scripts')
+from running_coach import fetch_activities
+from datetime import datetime, timedelta
+acts = fetch_activities(
+    (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d'),
+    datetime.now().strftime('%Y-%m-%d'),
+    headless=True
+)
+```
+
+### 获取失败 3 层兜底（+ coros-mcp 程序化中间层）
+
+```python
+# 第1层：重试
+if not acts:
+    import time; time.sleep(5)
+    acts = fetch_activities(date_from, date_to, headless=True)
+
+# 第1.5层：coros-mcp 程序化 API（cron 环境下替代交互式 CLI）
+# 认证走 `coros-mcp auth`（已存 keyring，region=asia），勿内联明文密码
+if not acts:
+    try:
+        sys.path.insert(0, '/home/wangsiji/projects/coros-mcp')
+        from coros_api import login, get_activities
+        login(region="asia")  # 用 keyring 中已存 token，非明文
+        acts = get_activities(
+            date_from.replace('-', ''),
+            date_to.replace('-', '')
+        )
+    except Exception:
+        pass
+
+# 第2层：缓存兜底
+if not acts:
+    import glob, json
+    cf = sorted(glob.glob('/home/wangsiji/.hermes/coros-cache/*.json'))
+    if cf:
+        with open(cf[-1]) as f: acts = json.load(f).get('activities', [])
+
+# 第3层：占位数据
+if not acts:
+    acts = [{"date":"今天","sport":"无记录","note":"数据获取失败"}]
+```
+
+**检查：** acts 非空？日期是最新的？近7天≥3次？耗时<60s？任一失败则用兜底并在日报标注 ⚠️。
+
+### 睡眠数据 — 2026-07-18 修正
+
+⚠️ **旧结论"睡眠 API 返回缓存值不可用"只对 Web API 的 `dashboard/query` 端点成立，已过时。**
+
+真实睡眠分期数据走独立的 **Mobile API**（`apicn.coros.com/coros/data/statistic/daily?type=4`），`cygnusb/coros-mcp` 的 `get_sleep_data(weeks=1)` 正是走这条通道，能拿 deep/light/REM/awake 分期。
+
+**日报睡眠获取顺序：**
+1. 优先 `coros-mcp get_sleep_data(weeks=1)` → 真实分期，填入日报"睡眠"行
+2. 若 mobile token 过期/未认证（先 `coros-mcp auth-status` 检查）→ 退回用户口述
+3. **绝不**用 Web API `dashboard/query` 的 sleep 字段做趋势（91天缓存值相同）
+
+> 认证：邮箱密码走 `coros-mcp auth`（存 keyring，安全），非明文。官方 coroslab/COROS-MCP 是浏览器 OAuth，无头 Telegram 环境跑不了（`OAuthNonInteractiveError`），故用 `cygnusb` 社区版而非官方。详见 `references/coros-mcp.md`。
+
+### 脚本维护
+
+```bash
+# 首次运行前校验语法
+python3 -c "import py_compile; py_compile.compile('~/.hermes/skills/custom/running-coach/scripts/running_coach.py', doraise=True)"
+```
+
+备用缓存：`/home/wangsiji/.hermes/coros-cache/YYYY-MM-DD.json`
+
+---
+
+
+## 自动化
+
+每日 8:20 自动推送训练日报：
+
+```
+cron job: daily-running-report
+时间: 20 8 * * *
+deliver: origin
+skills: running-coach
+prompt: 你是跑步教练。① 运行 `python3 ~/.hermes/skills/custom/running-coach/scripts/running_coach.py --days 7 --daily-report`（前台需 timeout 180，cron 超时设 180s）获取运动数据；② 再调 `coros-mcp` 的 `get_sleep_data(weeks=1)` + `get_daily_metrics(weeks=1)` 取睡眠分期/HRV/RHR；③ 合成日报（睡眠自动填充，失败退回口述）。输出日报时不包含"本周一览"和"近7天回顾"。
+```
+
+- **COROS 登录可能 40–50s**，日报 cron 内有 120s 超时。数据不全时重试即可。
+- ⚠️ **前台手动跑超时陷阱（2026-07-18 实测）**：`running_coach.py --days 7 --daily-report` 在 60s 前台超时下会失败，实际需 ~55–180s（登录 40–50s + 拉取 340 条记录）。手动验证用 `timeout 180`；cron 超时建议提到 180s（120s 偏紧，长周报易截断）。
+- **日报合成是两步，不是一步（2026-07-18 实测）**：`running_coach.py --daily-report` 只输出最新一天的训练报告（不含睡眠）；睡眠/HRV 必须单独从 `coros-mcp` 取后合并进日报。HRV 调用偶发超时返回空，重试一次即可。
+- **coros-mcp 认证 region=asia**（非 cn/eu）：`coros-mcp auth` 选 asia，token 存 keyring，Web+Mobile 双 token 有效。官方 coroslab/COROS-MCP 是浏览器 OAuth，无头 Telegram 环境跑不了（`OAuthNonInteractiveError`），故用社区版 `cygnusb/coros-mcp`。
+- **read_file 行号前缀污染（2026-06-09 用户校正）** — 不要用 `read_file()` 读取后直接写回 Obsidian `.md` 文件：read_file 的内容在每行前加了 `N|` 行号前缀（如 `1|---`），写回后会破坏 YAML frontmatter 和 markdown 格式。
+  - 正确读取：`with open(path) as f: lines = f.readlines()`
+  - 正确写入：用 `write_file()` 或 `terminal` 里的 Python open()
+  - 修复污染：`sed -i 's/^[0-9]*|//' file.md`
+
+---
+
+
+## vault 同步（健康主线）
+
+running-coach 不是数据黑盒——它读 vault 健康主线获取目标，写回追踪表沉淀数据。vault 路径：`~/projects/wsj-second-brain/`。
+
+### 读取（执行前）
+- `10-健康.md` — 确认当前指标（体重/10K/全马 PB）、决策记录
+- `01-Projects/Routine/年底三目标训练总表.md` — 三目标整合方案、周模板、里程碑倒推
+- `02-Areas/11-运动.md` — 训练链接总入口、参考书
+- 若 vault 数据与本 skill「用户核心数据」段冲突，**以 vault 为准**，并提示用户更新 skill 快照
+
+### 写回（日报生成后）
+- **`03-Resources/Notes/运动周追踪表.md`** 是唯一的训练数据沉淀处（手动周表：体重/睡眠/跑步km/配速/力量min/饮食/缺口）
+- 日报产出后，把当日数据按该表格式追加/更新到对应日期行：
+  - 体重kg：用户口述 → 填「体重kg」列
+  - 跑步km/配速：活动距离/配速 → 填「跑步km」「配速」列（标 E/M/T/I/R 区间）
+  - 力量min：肩带训练时长 → 填「力量min」列
+  - 睡眠h：优先 `coros-mcp get_sleep_data`（真实睡眠分期），无数据则用户口述 → 填「睡眠h」列
+  - 饮食：过午不食标记 → 填「饮食」列
+- 写入方式：`open()` 读表 → 定位当日行（周一~周日）→ 填对应列 → 写回。**禁止用 read_file 读后写回（行号前缀污染）**
+- 周汇总行（趋势/均重/总km/总力量min/净缺口）由用户周末手动算，AI 不代劳（认知边界）
+
+### 引用路径统一
+- skill 内凡提「运动周追踪表」一律指 `03-Resources/Notes/运动周追踪表.md`
+- 饮食方法论指 `02-Areas/12-饮食.md`（非独立文件）
+- 训练总表指 `01-Projects/Routine/年底三目标训练总表.md`
+
+## coros-mcp（备用数据获取工具）
+
+> 详见 `references/coros-mcp.md`（安装 / cron 限制 / 程序化调用）。API 底层见 `coros-api.md`。
+
+
+## COROS 截图解析
+
+> 详见 `references/screenshot-parsing.md`（类型A/B 截图 OCR + Obsidian Tasks 写入）。
+
+
+## COROS 体重数据说明
+
+> 详见 `references/body-composition.md`（COROS 无体重 + 体脂秤探测）。全流程档案 `xiaomi-scale-extraction.md`。
+
+
+## 比赛成绩预测
+
+> 详见 `references/vdot-prediction.md`（VDOT 等效表 + 训练进步因子）。
+
+
+## 身体成分数据（体脂秤）
+
+> 详见 `references/body-composition.md`（探测结论 + Apple Health/口述替代）。
+
+
+## 维护纪律（每次大改前必读）
+
+- **用户核心数据必须随重大测试/季度刷新**：本 skill 曾因未刷新而失真——体重写成 71kg（实为158斤）、VDOT 目标 52 标「已超」而破三<3:00 实际需 55+。凡用户报出新 PB/体重/赛事结果，立即更新 `## 用户核心数据` 段，并刷新 `10-健康.md` 仪表盘与 `01-Projects/Routine/马拉松比赛.md`。
+- **凭证绝不内联明文**：COROS 邮箱/密码从环境变量 `COROS_EMAIL` / `COROS_PWD` 读取（见 coros-mcp 代码块）。历史版本曾明文写在 SKILL.md，已清除。新增任何 API 调用同理。
+- **长 SKILL.md 拆层规则**：决策逻辑留主文件，工具细节（OCR坐标/COROS API/coros-mcp 代码/体重探测/VDOT表）下沉到 `references/`，主文件用 1-2 行指针。主文件超过 ~350 行即考虑再下沉。
+- **三目标对齐**：破三之外，减重（最高杠杆）与肩带增肌已纳入日报检查清单（第8/9条）。用户报新目标时同步更新 `## 用户核心数据` 的三目标段与 `01-Projects/Routine/年底三目标训练总表.md`。
+
+---
+
+## 排错
+
+| 症状 | 原因 | 解决 |
+|------|------|------|
+| 数据为空 | COROS 超时 | 重试一次 |
+| 脚本报错 `wait_for_url: Timeout 54xxxms exceeded` | COROS 登录页重定向失败（可能是页面结构变更，或 2FA/验证码干扰） | 登录成功但页面未跳转 — 试 coros-mcp 程序化 API（见 coros-mcp 节）→ 缓存兜底 |
+| 脚本报错 | 编码转义问题 | `py_compile.compile()` 校验后修 docstring |
+| 睡眠数据异常 | mobile token 过期/未认证 | 先 `coros-mcp auth-status`；过期则 `coros-mcp auth`（region=asia）重认证，勿用 Web API 缓存值 |
+| SmartScaleConnect 报 `Get "": unsupported protocol scheme` | Xiaomi API 登录验证失败（10025设备验证） | ⚠️ **搁置，勿重试。** 所有登录路径均已探明不可用。如需体重数据，走 Apple Health 导出或用户口述 |

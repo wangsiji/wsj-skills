@@ -1,0 +1,171 @@
+---
+name: clip
+description: 抓取网页/公众号/X/B站/播客内容，AI总结，按来源分类归档到Obsidian。触发词：剪藏、研究、clip、保存、收藏、小宇宙、B站、b23、网页、保存这篇文章、帮我记录一下这个
+tags: [clipping, web-clipper, xiaoyuzhou, bilibili, getnote]
+trigger_intent:
+  - 用户要求保存/收藏/记录一篇内容
+  - 用户分享一个链接要求处理
+  - 用户要求总结一篇文章/视频/播客
+  - 用户要求"剪藏"或"clip"某个内容
+---
+
+# Clip — 统一剪藏
+
+每次剪藏前先加载本 Skill：`skill_view('clip')`
+
+## 批量操作前的 vault 状态校验（与去重闸门同源）
+
+剪藏/整理涉及对 vault 的批量写时，先重测真实状态，不盲改：
+
+```bash
+VAULT="/home/wangsiji/projects/wsj-second-brain"
+find "$VAULT" -name "*.md" -not -path '*/.git/*' -not -path '*/.obsidian/*' | wc -l
+git -C "$VAULT" status --short | sed -E 's/^([A-Z ]).*/\1/' | sort | uniq -c
+```
+
+- **`Active.md` 的"统计"段会失真**：用户主动清理信源目录后，索引仍写旧数字（如"57 篇"），磁盘真实篇数已变。信 `ls Raw/ | wc -l` 真值，不信索引。
+- 会话早期盘点数字 ≠ 当前真值，每次批量写前重测。
+- `git status` 大量 ` D`（两空格 D = deleted，磁盘没了 git 还记着）通常是用户**主动清理**的已知结果，不是损坏——但脏状态下**不要 `git commit`**，除非用户明确许可。
+- 本会话教训：曾因误信过期索引，在 vault 状态判断上反复横跳。索引是缓存，磁盘是真相。
+
+用户曾要求剪藏 `lijigang/ljg-skills`，而 `Raw/李继刚/ljg-skills/` 已在库内（44 文件）。
+**提交 URL 前先查重**，避免在同一会话里重复灌入已知信源。
+
+```bash
+# GitHub 仓库：规范化 owner/repo 后在 Raw/ 下检索
+repo=$(echo "<url>" | sed -E 's#.*github.com/([^/]+)/([^/?#]+).*#\1/\2#')
+ls 00-LLM-WiKi/Raw/ | grep -iE "GitHub_.*${repo##*/}" && echo "已存在"
+# 通用：用标题关键词在 Raw/ 下检索（search_files 工具）
+search_files(pattern="<关键词>", path="00-LLM-WiKi/Raw")
+```
+
+命中即三选一：
+- **① 跳过**（最常用，符合"建得起清得掉"纪律）
+- **② 更新**（仅确认远程有新增时，diff 增量，不整篇重抓）
+- **③ 转消化**（把已存在的源当作主题合成的素材，比再剪新仓库值钱）
+
+这步也呼应知识系统理念：采集速度常快于消化，重复剪藏是"采集态待太久"的信号。
+
+## 入口
+
+```
+用户输入 URL / "剪藏这个" / "保存这篇文章"
+         ↓
+识别来源 → 网页 / X / 公众号 / B站 / 小宇宙
+         ↓
+并行：剪藏原文 + getnote AI 总结
+         ↓
+合并输出 → merge-clip.py → 00-LLM-WiKi/Raw/
+         ↓
+质量检查 → 文件存在? frontmatter完整? 内容非空?
+         ↓
+通知用户
+```
+
+## 来源路由
+
+| 来源 | 方法 | 参考 |
+|------|------|------|
+| 公众号 `mp.weixin.qq.com` | down.mptext.top API → 降级 curl+UA | `references/workflow-web.md` |
+| GitHub `github.com/<owner>/<repo>` | 抓 raw README → merge-clip.py `github` 类型 | `references/workflow-web.md` |
+| X/Twitter `x.com/.../status/...` | vnc-clip.py | `references/workflow-web.md` |
+| 通用网页 | vnc-clip.py → clip.py(备用) | `references/workflow-web.md` |
+| B站 `bilibili.com` | getnote API | `references/workflow-media.md` |
+| 视频号 `channels.weixin.qq.com` / `weixin.qq.com/sph/` | getnote API（链接改 `channels.weixin.qq.com/finder-preview/...` 再提交）| `references/workflow-media.md` |
+| 小宇宙 `xiaoyuzhoufm.com` | getnote API + 浏览器show notes | `references/workflow-media.md` |
+
+## 并行执行
+
+```
+步骤 A（剪藏原文）  ─── 与 B 同时启动 ───┐
+                                         ├→ 合并输出
+步骤 B（getnote AI）─── 与 A 同时启动 ───┘
+```
+
+## 统一合并输出
+
+```bash
+python3 scripts/merge-clip.py <type> "<title>" "<author>" "<url>" <body_file> <ai_summary_file>
+# type: gzh | x | web | github | bilibili | xiaoyuzhou | channels | douyin
+# 参数顺序：body_file 在前，ai_summary_file 在后（与 sys.argv[5]/[6] 一致，勿反）
+# → 00-LLM-WiKi/Raw/{来源}_{作者}_{标题}.md
+```
+
+## merge-clip.py 已知坑（已实测修复，沉淀防回归）
+
+本会话踩过并修好，记录为规则避免再犯：
+
+- **参数数量**：脚本 `len(sys.argv)` 校验必须是 `!= 7`（argv[1..6] = type+title+author+url+body+ai_summary）。早期误写 `!= 6` 会拒绝合法调用。
+- **参数顺序**：`argv[5]` = body_file，`argv[6]` = ai_summary_file。调脚本时 **body 在前、ai_summary 在后**，反了内容错位。
+- **重复 H2 标题**：若传给 ai_summary 的内容自带 `## AI 智能总结` 标题，合并后会叠出双标题。传前先去掉 ai_summary 首行 H2，或合并后用 `patch` 删重复行。
+- **无效正则**：截断公众号 `往期回顾` 用 `re.sub(r'\n往期回顾.*$', '', body, flags=re.DOTALL)`。不要用 `\n****` 这类转义（部分 Python 版本抛 `bad escape` 异常，直接中断合并）。
+
+## 批量剪藏（用户一次给 N 个链接）
+
+**并行处理，不串行排队。** getnote 的 save/poll/detail 各端点互不依赖，全部在 terminal 内用 `curl &` 并联节省时间：
+
+```
+1. 同时提交 N 个 getnote save      ← 1 次 terminal（curl & 并联 / 多条 curl）
+2. sleep 20s
+3. 同时轮询 N 个 progress          ← 1 次 terminal
+4. 同时取 N 个 detail/转写稿        ← 1 次 terminal
+5. 1 次 execute_code 写 N 个文件（循环 merge-clip.py）
+6. 通知 N 个完成
+```
+
+B站/视频号/公众号/网页混排时，原文抓取（步骤 A）也按来源并行启动，与 getnote（步骤 B）互不依赖。
+
+## AI 总结标准结构（每次剪藏都遵循）
+
+`ai_summary` 传给 merge-clip.py 的内容，建议固定包含：
+
+```markdown
+## AI 智能总结
+
+**来源**：<平台> @<作者>
+**标签**：<3-5 个关键词>
+
+### 核心观点 / 核心能力
+（1-3 段，提炼本质，不堆信息）
+
+### 与你第二大脑的契合
+（这项目/文章如何映射到你的体系：graphic-thinking / 7节卡片 / clip / 秋秋课程 / 跑步等。
+ 无关联则写"关联度低，当 XX 范本存着"）
+
+### 来源信任层级
+（对来源可信度的判断，二选一或组合）：
+- 公开仓库 + 协议 + 有 CI/文档/测试 → "可信度高，直接可用"
+- 第三方 API 依赖 → "外部服务依赖层级"
+- 需自建部署/公网暴露 → "自托管服务层级，需用户确认"
+- 个人博客/未验证 → "单一信源，需交叉验证"
+```
+
+> 来源信任层级是固定惯例，不是可选项。它让未来的你/检索时能快速判断该笔记可否直接引用。
+
+## GitHub README 大小陷阱
+
+GitHub 仓库 README 差异极大：
+- 正常项目：几 KB ~ 20 KB，可直接全文存
+- **manpage 型**（如 yt-dlp）：README 是 179KB 的选项参考大全，全文存进 vault 是噪音
+
+**处理规则**：抓 raw README 后先检查大小。
+- `< 30KB`：全文存（放在 `## 完整 README` 段）
+- `≥ 30KB`：**只抽核心段**（简介/特性/安装/用法），截到 ~20KB 内，并在文件注明"README 全文 XXX KB 为 manpage 选项参考，已节选"
+
+截断方法：README 通常结构是 `简介(顶部) → 目录 → INSTALLATION → 选项参考(巨长)`。
+抓 `简介段 + INSTALLATION 段`（到第一个 `## <大写选项>` 之前）即可，跳过尾部选项字典。
+
+## 产出管线
+
+```
+采集 → 00-LLM-WiKi/Raw/ → 精选 → Topics/（常青笔记）→ Outputs/（创作产出）
+```
+
+---
+
+**快速入口：**
+- 网页剪藏 → `skill_view('clip', 'references/workflow-web.md')`
+- 媒体剪藏 → `skill_view('clip', 'references/workflow-media.md')`
+- getnote 规则 → `skill_view('clip', 'references/getnote-api.md')`
+- 排错表 → `skill_view('clip', 'references/troubleshooting.md')`
+- 现有 reference（保留）→ `skill_view('clip', 'references/note-attribute-format.md')` 等

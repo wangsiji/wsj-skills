@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #f4f0ed; min-height: 100vh;
+    display: flex; justify-content: center; align-items: flex-start;
+    padding: 48px 20px;
+    font-family: -apple-system, "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+  .card { max-width: 520px; width: 100%; background: #eee9e1; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.06); }
+  .header { padding: 32px 36px 20px; }
+  .tag-row { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+  .tag { font-size: 11px; font-weight: 600; letter-spacing: 2px; color: #b97e51; }
+  .tag-bar { flex: 1; height: 1px; background: linear-gradient(to right, #d4c8bc, transparent); }
+  .number { font-size: 11px; color: #b0a090; letter-spacing: 1px; }
+  .title { font-size: 28px; font-weight: 700; color: #3d3a37; line-height: 1.3; letter-spacing: 1px; margin-bottom: 6px; }
+  .subtitle { font-size: 11px; color: #b0a090; letter-spacing: 3px; text-transform: uppercase; }
+  .body { padding: 0 36px 32px; }
+  .summary { background: #f4f0ed; border-radius: 8px; padding: 16px 18px; margin-bottom: 20px; }
+  .summary p { font-size: 13px; color: #3d3a37; line-height: 1.7; font-weight: 500; }
+  .mechanism { background: #f4f0ed; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; }
+  .mechanism p { font-size: 12px; color: #605e5a; line-height: 1.8; }
+  .action-group { background: #f4f0ed; border-radius: 8px; padding: 18px; margin-bottom: 20px; }
+  .action-title { font-size: 12px; font-weight: 600; color: #b97e51; letter-spacing: 2px; margin-bottom: 12px; }
+  .action-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid #e0d5c8; }
+  .action-item:last-child { border-bottom: none; }
+  .action-step { font-size: 14px; font-weight: 700; color: #b97e51; width: 24px; flex-shrink: 0; }
+  .action-body strong { font-size: 14px; color: #3d3a37; display: block; }
+  .action-body p { font-size: 12px; color: #605e5a; margin-top: 2px; line-height: 1.5; }
+  .quote { text-align: center; padding: 8px 20px 0; }
+  .quote p { font-size: 13px; font-style: italic; color: #8a7c6a; line-height: 1.6; }
+  .footer { padding: 16px 36px; border-top: 1px solid #e0d5c8; display: flex; justify-content: flex-end; }
+  .footer p { font-size: 10px; color: #b0a090; letter-spacing: 1px; }
+  @media (max-width: 560px) {
+    body { padding: 24px 12px; }
+    .header { padding: 24px 20px 16px; }
+    .body { padding: 0 20px 24px; }
+    .title { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <div class="tag-row">
+      <span class="tag">TAG</span>
+      <span class="tag-bar"></span>
+      <span class="number">NO.001</span>
+    </div>
+    <h1 class="title">标题</h1>
+    <p class="subtitle">SUBTITLE</p>
+  </div>
+  <div class="body">
+    <div class="summary"><p>摘要</p></div>
+    <div class="mechanism"><p>机制</p></div>
+    <div class="action-group">
+      <p class="action-title">◈ 行动指南</p>
+      <div class="action-item">
+        <span class="action-step">①</span>
+        <div class="action-body"><strong>行动</strong><p>描述</p></div>
+      </div>
+    </div>
+    <div class="quote"><p>"金句"</p></div>
+  </div>
+  <div class="footer"><p>BY 作者</p></div>
+</div>
+</body>
+</html>
