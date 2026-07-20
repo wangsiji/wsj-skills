@@ -72,11 +72,29 @@ def pull_day(target_date: str):
 import sys, asyncio, json, traceback
 from datetime import datetime, timedelta, timezone
 sys.path.insert(0, "{COROS_MCP}")
-from coros_api import try_auto_login, _base_url, _auth_headers, ENDPOINTS
+from coros_api import try_auto_login, _base_url, _auth_headers, ENDPOINTS, fetch_activity_detail
 SH = timezone(timedelta(hours=8))
 TARGET = "{target_date}"
 RUN_MODES = [100, 102, 103]
 STR_MODE = 402
+
+HR_ZONE_NAMES = ["E", "M", "HV", "VO2", "A", "I"]  # zoneIndex 0..5（按 COROS 心率区间）
+
+def _zone_str(zone_list, want_type):
+    """从 zoneList 提取指定 type 的区间百分比分布字符串，如 'E28% M71%'。"""
+    for z in zone_list or []:
+        if z.get("type") == want_type:
+            items = sorted(z.get("zoneItemList", []), key=lambda x: x.get("zoneIndex", 0))
+            parts = []
+            for it in items:
+                idx = it.get("zoneIndex", 0)
+                pct = it.get("percent", 0)
+                if pct <= 0:
+                    continue
+                name = HR_ZONE_NAMES[idx] if want_type == 126 and idx < len(HR_ZONE_NAMES) else str(idx)
+                parts.append(f"{name}{pct}%")
+            return " ".join(parts)
+    return ""
 
 async def main():
     try:
@@ -97,14 +115,43 @@ async def main():
                 day = datetime.fromtimestamp(int(ts), SH).strftime("%Y-%m-%d")
                 if day != TARGET:
                     continue
-                out.append({{
+                aid = it.get("labelId") or it.get("activityId")
+                st = it.get("sportType") or it.get("sport_type") or 100
+                rec = {{
                     "name": it.get("name") or it.get("remark"),
-                    "sport_type": it.get("sport_type"),
+                    "sport_type": st,
                     "dist_m": it.get("distance") or 0,
                     "hr": it.get("avgHr"),
                     "tl": it.get("trainingLoad"),
                     "dur_s": it.get("totalTime"),
-                }})
+                }}
+                try:
+                    det = await fetch_activity_detail(auth, aid, st)
+                    s = det.get("summary", {{}}) or {{}}
+                    start_ts = s.get("startTimestamp") or ts
+                    rec["start_time"] = datetime.fromtimestamp(int(start_ts), SH).strftime("%H:%M") if start_ts else ""
+                    dur_ms = s.get("totalTime") or it.get("totalTime") or 0
+                    rec["dur_s"] = int(dur_ms) // 1000 if dur_ms > 1000 else (dur_ms or 0)
+                    dist_m = s.get("distance") or it.get("distance") or 0
+                    dist_m = dist_m / 100.0 if dist_m > 1000 else dist_m
+                    rec["dist_m"] = dist_m
+                    if rec["dur_s"] and dist_m:
+                        spm = rec["dur_s"] / dist_m * 1000.0
+                        m = int(spm // 60); sec = int(spm % 60)
+                        rec["pace"] = f"{m}:{sec:02d}"
+                    else:
+                        rec["pace"] = ""
+                    rec["hr"] = s.get("avgHr") or it.get("avgHr")
+                    rec["tl"] = s.get("trainingLoad") or it.get("trainingLoad")
+                    zl = det.get("zoneList", [])
+                    rec["hr_zones"] = _zone_str(zl, 126)
+                    rec["pace_zones"] = _zone_str(zl, 130)
+                except Exception:
+                    rec["start_time"] = ""
+                    rec["pace"] = ""
+                    rec["hr_zones"] = ""
+                    rec["pace_zones"] = ""
+                out.append(rec)
         print(json.dumps(out, ensure_ascii=False))
     except Exception:
         traceback.print_exc()
@@ -214,7 +261,11 @@ def main():
         st = a.get("sport_type")
         is_run = ("跑" in name or "run" in sport or st in (100, 102, 103))
         if is_run and dist > 0:
-            run_rows.append(f"| {day_str} | {dist:.1f} | | {hr} | E | {tl} | 自动(COROS) | {name} |")
+            dur_s = a.get("dur_s") or 0
+            dur = f"{dur_s//60}:{dur_s%60:02d}" if dur_s else ""
+            pace = a.get("pace") or ""
+            hrz = a.get("hr_zones") or ""
+            run_rows.append(f"| {day_str} | {a.get('start_time','')} | {dist:.1f} | {dur} | {pace} | {hr} | {hrz} | {tl} | 自动(COROS) | {name} |")
         elif "俯卧撑" in name:
             m = re.search(r"(\d+)\s*组\s*(\d+)\s*个", name)
             sets = int(m.group(1)) if m else 1
