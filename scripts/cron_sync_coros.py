@@ -92,7 +92,7 @@ def _zone_str(zone_list, want_type):
                 if pct <= 0:
                     continue
                 name = HR_ZONE_NAMES[idx] if want_type == 126 and idx < len(HR_ZONE_NAMES) else str(idx)
-                parts.append(f"{name}{pct}%")
+                parts.append(name + str(pct) + "%")
             return " ".join(parts)
     return ""
 
@@ -130,15 +130,15 @@ async def main():
                     s = det.get("summary", {{}}) or {{}}
                     start_ts = s.get("startTimestamp") or ts
                     rec["start_time"] = datetime.fromtimestamp(int(start_ts), SH).strftime("%H:%M") if start_ts else ""
-                    dur_ms = s.get("totalTime") or it.get("totalTime") or 0
-                    rec["dur_s"] = int(dur_ms) // 1000 if dur_ms > 1000 else (dur_ms or 0)
+                    dur_raw = s.get("totalTime") or it.get("totalTime") or 0
+                    rec["dur_s"] = int(dur_raw) // 100 if dur_raw > 1000 else (dur_raw or 0)
                     dist_m = s.get("distance") or it.get("distance") or 0
                     dist_m = dist_m / 100.0 if dist_m > 1000 else dist_m
                     rec["dist_m"] = dist_m
                     if rec["dur_s"] and dist_m:
                         spm = rec["dur_s"] / dist_m * 1000.0
                         m = int(spm // 60); sec = int(spm % 60)
-                        rec["pace"] = f"{m}:{sec:02d}"
+                        rec["pace"] = str(m) + ":" + str(sec).zfill(2)
                     else:
                         rec["pace"] = ""
                     rec["hr"] = s.get("avgHr") or it.get("avgHr")
