@@ -17,6 +17,18 @@ description: 如何拿到 COROS 体重——官方 MCP (queryUserInfo) 的 OAuth
 - `queryDailyHealthData` 有步数/卡路里/睡眠/压力，**但不含体重**（已验证）
 - `queryHealthCheckTimeSeries` 是"健康打卡"序列，你不打卡就无数据
 
+## 官方 MCP 能力边界（关键，避免重复踩坑）
+
+> 不要试图把跑步/俯卧撑/训练计划也迁到官方 MCP —— **动态注册的 public client 被官方网关限流，运动记录类 tool 调不通**。
+
+- ⚠️ `querySportRecords`（跑步/俯卧撑活动）、`queryTrainingSchedule`（训练计划）等**大数据量 tool 被官方 MCP 网关拒绝**，返回：
+  `"Tool call anomalies detected... request exceeds the LLM capability boundary..."`
+  原因：Dynamic Client Registration 的 public client 权限受限，官方只放开了 profile/轻量查询。
+- ✅ 实测**只有 `queryUserInfo`（体重）能稳定返回**；`queryDailyHealthData` 等轻量 tool 可用但**不含体重**。
+- 运动记录/计划仍走**非官方 coros-mcp**（`fetch_activities` / `fetch_schedule`，中国区网络偶发超时需重试）。
+- 若将来要解锁官方 MCP 全部 22 个 tool → 需要 **COROS 官方审核发放的 OAuth app（client_id/secret）**，不是现场动态注册能拿到的。
+- ⚠️ 当前 token 是 public client 动态注册所得，COROS **随时可能 revoke** 此 client；若某天 `coros_weight.get_weight_kg()` 失败，大概率是 client 被 ban，回退手动记或重新走一次 OAuth 流程。
+
 ## 依赖与实现
 
 - 复用 `cmoron/coros-cli`（GitHub）的 OAuth 实现：`oauth.py`(register_client/exchange_code/refresh_access_token) + `metadata.py`(MCP_ISSUERS: us/eu/cn) + `pkce.py` + `models.py`

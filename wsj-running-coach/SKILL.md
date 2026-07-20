@@ -20,7 +20,7 @@ metadata:
 1. 减重是破三最高杠杆（1kg≈3秒/km；当前真实体重 **138斤→目标125斤**，约 13斤 ≈ 39秒/km 可用，非 158→125 的 50秒）
 2. 每次执行前拉最新 COROS 数据，不用缓存
 3. vault 是真相源，skill 用户核心数据段为快照（过期不更新不代表目标变）
-4. 睡眠/HRV 从 coros-mcp mobile API 自动获取，失败退口述
+4. 睡眠/HRV 从 coros-mcp mobile API（`fetch_sleep` / `get_daily_metrics`）自动获取，失败退口述。⚠️ **`fetch_sleep` 必须 mobile token**：`try_auto_login()` 文档明确「Always skips mobile login」只拿 web token，直接调 `fetch_sleep` 会触发 `_ensure_mobile_token(auth)` → `auth.mobile_access_token` 报 `NoneType`。修正：调用前显式 `await login_mobile(email, password, "cn")` 补 mobile token（web 偶发失败时 mobile 仍稳，可作兜底）。睡眠日期 `SleepRecord.date`（= `happenDay`）是 `YYYYMMDD`（无横杠，**醒来日**，**非入睡日**）；cron 拉 `prev_y..d_y` 区间得每天一条，每条按**自身 date** 落对应日期行，绝不可统一写进 `day_str` 行（否则错位+漏写，实测踩过）。细节见 `references/coros-sleep-sync.md`
 5. 体重：COROS **非官方 API 无体重接口**（已枚举确认 dayDetail/mobile statistic 均不含）；但**官方 MCP 的 `queryUserInfo` 已接入**——走 `coros-mcp/coros_weight.py`（OAuth Dynamic Client Registration + PKCE，token 存 `~/.hermes/coros_mcp_token.json`）。cron 每天 10:00 自动拉体重写 `体重数据.md`（见 `references/coros-official-mcp-weight.md`）。无每日历史序列 tool，返回的是 profile 最新值，cron 每日快照即可
 
 ## Rule Priority
@@ -69,6 +69,7 @@ metadata:
 - ❌ 用 Web API dashboard/query 的 sleep 字段（缓存值，不可用）
 - ❌ 在建设期（7-8月）安排全马测试（打乱巅峰期节奏）
 - ❌ 为用户已在 COROS 安排/追踪的习惯（每日跑步、俯卧撑等）另建 vault 追踪文件 —— **一个项目一个文件**，数据从 COROS 拉，不重复建。用户原话：「尽量一个项目一个文件」
+- ❌ 把跑步/俯卧撑/训练计划迁到官方 MCP：动态注册的 public client 被官方网关限流，`querySportRecords`/`queryTrainingSchedule` 等运动记录类 tool 调不通（返回 "exceeds the LLM capability boundary"）。体重走官方 MCP（queryUserInfo），运动记录/计划走非官方 coros-mcp，这是当前最优分工，勿反复试迁移。详见 `references/coros-official-mcp-weight.md` 的「官方 MCP 能力边界」
 - ⚠️ `running_coach.py` 当前硬编码密码（违反上条「内联密码」）；cron 自动跑前先确认 playwright 可用。CLI 参数用 `--from-date`/`--to-date`（非 `--date-from`）
 
 ## 每日自动拉取（cron 模式）
@@ -81,7 +82,7 @@ metadata:
 ### cron 脚本落地规则（实测踩坑）
 
 - **cron 的 `script` 字段必须放在 `~/.hermes/scripts/` 下**，只写文件名（如 `script: _cron_sync_coros.py`）。给绝对路径或 vault 内路径会被拒：`Script path must be relative to ~/.hermes/scripts/`。vault 里放的同名脚本需 `cp` 过去并删掉 vault 那份（避免重复）。
-- **可用脚本**：`~/.hermes/scripts/_cron_sync_coros.py`（已建，job_id `818beb975a1f`，每天 **10:00**）。它走 **coros-mcp 程序化拉取**（非 Playwright），按 `sport_type`/`name` 区分跑步与俯卧撑，分别 `append_row` 进 `跑步数据.md` / `俯卧撑数据.md`；体重走 **官方 MCP**（`coros_weight.get_weight_kg()`，子进程调用，写 `体重数据.md`，同日去重）。无活动日输出「无 COROS 活动记录」不写库。详见 `references/coros-official-mcp-weight.md`。
+- **可用脚本**：`~/.hermes/scripts/_cron_sync_coros.py`（已建，job_id `818beb975a1f`，每天 **10:00**）。它走 **coros-mcp 程序化拉取**（非 Playwright），按 `sport_type`/`name` 区分跑步与俯卧撑，分别 `append_row` 进 `跑步数据.md` / `俯卧撑数据.md`；体重走 **官方 MCP**（`coros_weight.get_weight_kg()`，子进程调用，写 `体重数据.md`，同日去重）；**睡眠走 `coros_api.fetch_sleep`（mobile API，需显式 `login_mobile` 补 token）写 `睡眠数据.md`**。四项同日去重，无活动日输出「无 COROS 活动记录」不写库。详见 `references/coros-official-mcp-weight.md`（体重）与 `references/coros-sleep-sync.md`（睡眠）。
 - 复用 `running_coach.py` 内联密码重登（env 为空时）；子进程 `-c` 内嵌脚本务必 `import datetime`（否则空 stdout 时 `[-300]` 索引报错）。
 - 区分跑步 vs 力量：`sport_type` 跑步≈1/6、力量≈2/3/4/5/7/8/9；或 `name` 含「跑/run」/「俯卧撑/push/力量」。
 
@@ -109,6 +110,7 @@ metadata:
 | `references/tooling-details.md` | 程序化调用代码片段 |
 | `references/body-composition.md` | 体重/体脂数据说明（官方 MCP 已接体重） |
 | `references/coros-official-mcp-weight.md` | **COROS 官方 MCP 拉体重的 OAuth 流程 + cron 接入（非官方 API 无体重）** |
+| `references/coros-sleep-sync.md` | **COROS 睡眠同步：`fetch_sleep` 需 mobile token + `SleepRecord.date` 为 YYYYMMDD 无横杠 + 字段映射 → 睡眠数据.md** |
 | `references/12week-plan-2026.md` | 你的真实 12 周半马计划 |
 | `references/daily-report-template.md` | 日报模板 + 自动检查清单 |
 | `references/cron-cache-fallback.md` | **cron/无头环境实时同步失败时的缓存聚合回退**（load_cache 不满足多日窗时如何重建 7 天窗）|
