@@ -29,12 +29,16 @@ description: 如何拿到 COROS 体重——官方 MCP (queryUserInfo) 的 OAuth
 - 若将来要解锁官方 MCP 全部 22 个 tool → 需要 **COROS 官方审核发放的 OAuth app（client_id/secret）**，不是现场动态注册能拿到的。
 - ⚠️ 当前 token 是 public client 动态注册所得，COROS **随时可能 revoke** 此 client；若某天 `coros_weight.get_weight_kg()` 失败，大概率是 client 被 ban，回退手动记或重新走一次 OAuth 流程。
 
-## 依赖与实现
+## 依赖与实现（2026-07-20 重写为自包含）
 
-- 复用 `cmoron/coros-cli`（GitHub）的 OAuth 实现：`oauth.py`(register_client/exchange_code/refresh_access_token) + `metadata.py`(MCP_ISSUERS: us/eu/cn) + `pkce.py` + `models.py`
-- 安装到 coros-mcp 的 venv：`pip install -e .`（在克隆的 coros-cli 目录里）
-- 封装模块：`coros-mcp/coros_weight.py`，token 持久化 `~/.hermes/coros_mcp_token.json`（含 `expires_at`）
-- 调用：`asyncio.run(get_weight_kg())` → float kg（失败返回 None）；内部 `_ensure_token` 到期前自动 refresh
+> ⚠️ **历史版本依赖 `cmoron/coros-cli`**（pip install -e 装进 coros-mcp venv）。**当前版本已重写为自包含**，不再 import cmoron —— 直接 HTTP 调官方 MCP endpoint，自己实现 Dynamic Client Registration + PKCE。原因：提上游 PR 时不能引第三方包；自包含版 `coros_weight.py` 仅依赖 `httpx`（coros-mcp 已有）。
+
+- 封装模块：`coros-mcp/coros_weight.py`（自包含），token 持久化 `~/.hermes/coros_mcp_token.json`（含 `expires_at`）
+- 对外函数：
+  - `asyncio.run(get_weight_kg())` → float kg（失败返回 None）；内部 `_ensure_token` 到期前自动 refresh
+  - `asyncio.run(prepare_auth())` → dict(url, state, verifier, client_id, client_secret)，打印授权 URL 给用户
+  - `asyncio.run(complete_auth(code, meta))` → 用回调 code 换 token 并持久化
+- 调用：`asyncio.run(get_weight_kg())` 即可；未授权时返回 None 并打印提示。
 
 ## OAuth 流程（一次性，需用户交互）
 
@@ -56,3 +60,17 @@ description: 如何拿到 COROS 体重——官方 MCP (queryUserInfo) 的 OAuth
 
 `_cron_sync_coros.py`（每天 10:00）在拉完跑步/俯卧撑后，用子进程调 `coros_weight.get_weight_kg()`，
 把 `kg×2` 写进 `体重数据.md`（同日去重：已有该日期行则覆盖）。体重失败不影响跑步/俯卧撑写入（try/except 隔离）。
+
+## 上游 PR 流程（贡献回 coros-mcp，可复用）
+
+`coros_weight.py` 最初在本地 `~/projects/coros-mcp`（cygnusb 上游 clone）加的，本地 commit 后 `git push origin main` **被拒（403，无上游写权限）**。正确贡献流程（2026-07-20 实测）：
+
+1. `gh repo fork cygnusb/coros-mcp --clone=false` → 在你的名下建 `wangsiji/coros-mcp`（若已存在则跳过）
+2. `git remote add wangsiji https://github.com/wangsiji/coros-mcp.git`
+3. 从本地 main 切**新分支**：`git checkout -b feat/weight-official-mcp`（不要直接推 main，远端 main 有上游新提交会 rejected non-fast-forward）
+4. `git push wangsiji feat/weight-official-mcp`
+5. `gh pr create --repo cygnusb/coros-mcp --head wangsiji:feat/weight-official-mcp --base main --title "..." --body "..."`
+   - PR body 必须写清：**动机**（非官方API无体重字段）、**改动**（自包含实现/不引依赖/封装queryUserInfo）、**已知限制**（public client 限流、仅覆盖体重、与项目"无 key 非官方"定位的潜在冲突）
+   - 本次 PR：`https://github.com/cygnusb/coros-mcp/pull/46`
+
+> 提 PR 前确认改动**自包含、不引外部私有依赖**——上游不会接受 import 你本机 venv 里的第三方包。本地能用 ≠ PR 能合并。
