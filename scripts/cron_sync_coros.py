@@ -81,7 +81,7 @@ STR_MODE = 402
 HR_ZONE_NAMES = ["E", "M", "HV", "VO2", "A", "I"]  # zoneIndex 0..5（按 COROS 心率区间）
 
 def _zone_str(zone_list, want_type):
-    """从 zoneList 提取指定 type 的区间百分比分布字符串，如 'E28% M71%'。"""
+    """从 zoneList 提取指定 type 的区间百分比分布字符串，如 'E 28% M 71%'。"""
     for z in zone_list or []:
         if z.get("type") == want_type:
             items = sorted(z.get("zoneItemList", []), key=lambda x: x.get("zoneIndex", 0))
@@ -91,8 +91,11 @@ def _zone_str(zone_list, want_type):
                 pct = it.get("percent", 0)
                 if pct <= 0:
                     continue
-                name = HR_ZONE_NAMES[idx] if want_type == 126 and idx < len(HR_ZONE_NAMES) else str(idx)
-                parts.append(name + str(pct) + "%")
+                if want_type == 126 and idx < len(HR_ZONE_NAMES):
+                    name = HR_ZONE_NAMES[idx]
+                else:
+                    name = "Z" + str(idx)
+                parts.append(name + " " + str(pct) + "%")
             return " ".join(parts)
     return ""
 
@@ -128,7 +131,7 @@ async def main():
                 try:
                     det = await fetch_activity_detail(auth, aid, st)
                     s = det.get("summary", {{}}) or {{}}
-                    start_ts = s.get("startTimestamp") or ts
+                    start_ts = ts  # 用活动列表 startTime（秒，UTC），不用 summary.startTimestamp（毫秒）
                     rec["start_time"] = datetime.fromtimestamp(int(start_ts), SH).strftime("%H:%M") if start_ts else ""
                     dur_raw = s.get("totalTime") or it.get("totalTime") or 0
                     rec["dur_s"] = int(dur_raw) // 100 if dur_raw > 1000 else (dur_raw or 0)
@@ -265,7 +268,8 @@ def main():
             dur = f"{dur_s//60}:{dur_s%60:02d}" if dur_s else ""
             pace = a.get("pace") or ""
             hrz = a.get("hr_zones") or ""
-            run_rows.append(f"| {day_str} | {a.get('start_time','')} | {dist:.1f} | {dur} | {pace} | {hr} | {hrz} | {tl} | 自动(COROS) | {name} |")
+            pz = a.get("pace_zones") or ""
+            run_rows.append(f"| {day_str} | {a.get('start_time','')} | {dist:.1f} | {dur} | {pace} | {pz} | {hr} | {hrz} | {tl} | 自动(COROS) | {name} |")
         elif "俯卧撑" in name:
             m = re.search(r"(\d+)\s*组\s*(\d+)\s*个", name)
             sets = int(m.group(1)) if m else 1
