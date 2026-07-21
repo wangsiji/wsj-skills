@@ -115,7 +115,7 @@ metadata:
 | `references/github-upstream-pr.md` | **把本地改动提 PR 回上游仓库的可复用流程**（fork→分支→push→gh pr create，自包含要求+PR body 写法）；coros_weight.py 即 PR #46 到 cygnusb/coros-mcp |
 | `references/coros-api-quirks.md` | **COROS API 字段格式陷阱**（startTimestamp 毫秒、totalTime 厘秒、zoneList type 126=HR/130=pace、`fetch_activity_detail` 使用模式、nested f-string 嵌套错误） |
 | `references/gh-pr-edit-quirks.md` | **`gh pr edit --title/--body` 被 Projects classic 警告静默吞 → 改用 `gh api -X PATCH /repos/<o>/<r>/pulls/<N>`**（上游 PR 编辑可靠路径，验证看 `gh pr view --json`） |
-| `scripts/cron_sync_coros.py`（git 副本） | **健康管家每日同步主脚本**（真实运行件在 `~/.hermes/scripts/`，此为其版本管理副本；改完 `cp` 同步）。脚本内嵌子进程：外层 f-string 会解析 `{...}` → 内层禁用 f-string 用拼接；`totalTime` 厘秒 `//100` 而非 `//1000`） |
+| `scripts/cron_sync_coros.py`（git 副本） | **健康管家每日同步主脚本**（真实运行件在 `~/.hermes/scripts/`，此为其版本管理副本；改完 `cp` 同步）。脚本内嵌子进程：外层 f-string 会解析 `{...}` → 内层禁用 f-string 用拼接；`totalTime` 厘秒 `//100` 而非 `//1000`）<br>**append_row 2026-07-21 修复**：①表头匹配 `startswith("| 日期")` 遇多空格对齐表头失败 → 改 `"|" in ln and "日期" in ln`；②去重原地替换不挪位（旧行在末尾）→ 改先删旧行再统一插入表头后；③尾部空行未剥离致断表 → `while pop()` 去空串。
 | `references/12week-plan-2026.md` | 你的真实 12 周半马计划 |
 | `references/daily-report-template.md` | 日报模板 + 自动检查清单 |
 | `references/cron-cache-fallback.md` | **cron/无头环境实时同步失败时的缓存聚合回退**（load_cache 不满足多日窗时如何重建 7 天窗）|
