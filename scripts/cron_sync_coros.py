@@ -30,28 +30,33 @@ RC = Path.home() / ".hermes" / "skills" / "custom" / "wsj-running-coach" / "scri
 
 
 def append_row(path: Path, row: str):
-    lines = path.read_text(encoding="utf-8").split("\n")
-    # 同日去重：若已有该日期行，替换而非追加
+    text = path.read_text(encoding="utf-8")
+    lines = text.split("\n")
+    # 去掉尾部空行
+    while lines and not lines[-1].strip():
+        lines.pop()
+
+    # 同日去重：若已有该日期行，先移除旧行
     cols = row.split("|")
     day = cols[1].strip() if len(cols) > 1 else ""
     if day:
-        for i, ln in enumerate(lines):
-            lcols = ln.split("|")
+        for i in range(len(lines) - 1, -1, -1):
+            lcols = lines[i].split("|")
             if len(lcols) > 1 and lcols[1].strip() == day:
-                lines[i] = row
-                path.write_text("\n".join(lines), encoding="utf-8")
-                return
+                del lines[i]
+                break
+
     # 在表格第一行数据前插入（表头后第一行）
     insert_at = None
     for i, ln in enumerate(lines):
-        if ln.strip().startswith("| 日期") or ln.strip().startswith("|日期"):
+        if ln.strip().startswith("|") and "日期" in ln:
             insert_at = i + 2
             break
     if insert_at is None:
         lines.append(row)
     else:
         lines.insert(insert_at, row)
-    path.write_text("\n".join(lines), encoding="utf-8")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def pull_day(target_date: str):
