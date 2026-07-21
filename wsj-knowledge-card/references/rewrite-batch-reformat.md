@@ -36,7 +36,7 @@ Step 4: 验证结构
 name: 核心词
 description: 一句话结论（完整立场句）
 category:
-  - "[[33-学习]]"
+  - "[[常青卡片]]"
 tags: [常青卡片]
 source: []
 status: learning
