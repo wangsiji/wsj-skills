@@ -14,11 +14,20 @@ import sys, os, re, json, asyncio, subprocess
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VAULT = Path.home() / "projects" / "wsj-second-brain" / "01-Projects" / "Routine"
+VAULT = Path.home() / "projects" / "wsj-second-brain" / "03-Resources" / "Notes"
 RUN_FILE = VAULT / "跑步数据.md"
 PUSH_FILE = VAULT / "俯卧撑数据.md"
 WEIGHT_FILE = VAULT / "体重数据.md"
 SLEEP_FILE = VAULT / "睡眠数据.md"
+
+# 数据文件表头：append_row 在文件缺失时按此自动创建，避免 FileNotFoundError
+HEADERS = {
+    RUN_FILE: "| 日期 | 时间 | 距离(km) | 时长 | 配速 | 配速区间 | 心率 | 心率区间 | 训练负荷 | 来源 | 备注 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    PUSH_FILE: "| 日期 | 总个数 | 组数 | 类型 | 来源 | 备注 |\n| --- | --- | --- | --- | --- | --- |\n",
+    WEIGHT_FILE: "| 日期 | 体重(斤) | 来源 |\n| --- | --- | --- |\n",
+    SLEEP_FILE: "| 日期 | 总时长(分) | 深睡 | 浅睡 | REM | 清醒 | 平均心率 | 质量分 | 来源 |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+}
+
 COROS_MCP = Path.home() / "projects" / "coros-mcp"
 PY = str(COROS_MCP / ".venv" / "bin" / "python")
 
@@ -30,6 +39,9 @@ RC = Path.home() / ".hermes" / "skills" / "custom" / "wsj-running-coach" / "scri
 
 
 def append_row(path: Path, row: str):
+    if not path.exists():
+        hdr = HEADERS.get(path)
+        path.write_text(hdr if hdr else "", encoding="utf-8")
     text = path.read_text(encoding="utf-8")
     lines = text.split("\n")
     # 去掉尾部空行
