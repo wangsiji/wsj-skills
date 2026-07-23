@@ -153,7 +153,6 @@ uv pip install -e ".[all]" 2>&1
 - [REST API 设备管理](references/syncthing-rest-api-device-management.md) — 用 API 添加/移除设备，替代 XML 编辑
 - [WebDAV 设置](references/webdav-setup.md)
 - [VPS 外部访问](references/vps-external-access.md)
-- [iCloud on Linux](references/icloud-on-linux.md)
 
 ### VNC 参考
 - [VNC 远程桌面](references/vnc-remote-desktop.md) — 启动/验证/排错（4.1~4.5）
