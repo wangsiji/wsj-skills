@@ -30,6 +30,49 @@ SOURCE_CONFIG = {
 VAULT = "/home/wangsiji/projects/wsj-second-brain"
 
 
+def demote_headers(text: str) -> str:
+    """Demote every markdown header one level (# -> ##) except inside fenced code blocks.
+    Used so clipped-original body headings start at H3 under the '## 剪藏原文' H2."""
+    lines = text.split("\n")
+    out, in_fence = [], False
+    for ln in lines:
+        if ln.lstrip().startswith("```"):
+            in_fence = not in_fence
+            out.append(ln)
+            continue
+        if not in_fence:
+            m = re.match(r"^(#{1,6})\s", ln)
+            if m:
+                hashes = m.group(1)
+                new = "#" * min(len(hashes) + 1, 6)
+                ln = new + " " + ln[m.end():]
+        out.append(ln)
+    return "\n".join(out)
+
+
+def ensure_table_blank_before(text: str) -> str:
+    """Ensure a blank line precedes every markdown table.
+
+    A table = a line of `|...|` whose next line is a separator (`|---|`).
+    GFM requires a blank line before the header or the table won't render.
+    Skips fenced code blocks."""
+    lines = text.split("\n")
+    out, in_fence = [], False
+    for i, ln in enumerate(lines):
+        if ln.lstrip().startswith("```"):
+            in_fence = not in_fence
+            out.append(ln)
+            continue
+        if not in_fence:
+            is_header = (re.match(r"^\s*\|.*\|", ln)
+                         and i + 1 < len(lines)
+                         and re.match(r"^\s*\|[-: |]+\|", lines[i + 1]))
+            if is_header and i > 0 and out and out[-1].strip() != "":
+                out.append("")
+        out.append(ln)
+    return "\n".join(out)
+
+
 def merge(source_type: str, title: str, author: str, url: str,
           ai_summary: str, body: str) -> str:
     cfg = SOURCE_CONFIG.get(source_type)
@@ -62,8 +105,11 @@ modified: {now}
         body = re.sub(r'往期回顾.*$', '', body, flags=re.DOTALL)
         body = body.strip()
 
-    ai_section = f"## AI 智能总结\n\n{ai_summary.strip()}\n\n" if ai_summary else ""
-    body_section = f"## 剪藏原文\n\n{body}\n" if body else ""
+    ai_summary = ensure_table_blank_before(ai_summary.strip()) if ai_summary else ""
+    ai_section = f"## AI 智能总结\n\n{ai_summary}\n\n" if ai_summary else ""
+    body_demoted = demote_headers(body) if body else ""
+    body_demoted = ensure_table_blank_before(body_demoted) if body_demoted else ""
+    body_section = f"## 剪藏原文\n\n{body_demoted}\n" if body else ""
 
     merged = frontmatter + "# " + title + "\n\n" + ai_section + body_section
 
