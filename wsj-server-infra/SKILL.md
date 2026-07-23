@@ -1,6 +1,6 @@
 ---
 name: wsj-server-infra
-description: 自建服务器基础设施运维：当用户要求部署/排查 Hermes Dashboard、Web UI、nginx 反代、Syncthing 同步、VNC 远程桌面时使用。服务器 192.3.16.123 | 域名 wangsiji.site。覆盖服务配置、反向代理、文件同步、远程桌面。
+description: 自建服务器基础设施运维：当用户说"排查/部署/改反代/VNC 连不上/Syncthing 不同步/nginx 报错/Hermes Dashboard 异常/Web UI 起不来/Memory 侧车故障"时使用。服务器 192.3.16.123 | 域名 wangsiji.site。覆盖服务配置、反向代理、文件同步、远程桌面、TencentDB Agent Memory 侧车。
 tags: [devops, nginx, hermes, syncthing, vnc]
 version: 2.0.0
 author: siji
