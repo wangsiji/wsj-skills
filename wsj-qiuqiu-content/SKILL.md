@@ -48,14 +48,16 @@ metadata:
   ↓ 是什么任务？
   A 选题  → 分支0（见 references/writing-rules.md 选题段）
   B 新写  → 路径A（写前必做→结构→初稿→配图→自查）
-  C 修改  → 路径B（已有文章？编辑模式，不重新选题/搜素材/校准人设）
+  C 修改  → 路径B（已有文章？编辑模式，不重新选题/搜素材/人设校准）
   D 润色  → 去 AI 味 + 语气校准（references/qiuqiu-mindset.md）
   E 标题  → 先定标题（references/article-patterns.md）
   F 配图  → 实拍规则（references/image-rules.md）
   G 发布  → md2wechat 发布优化
+  H 抓成稿 → references/published-clip.md（走 mptext API，落初稿目录，三段式）
 ```
 
 > **关键**：用户说"优化这篇文章"→ 检测已有文章 → 进 **C 编辑模式**，跳过选题/搜素材/人设校准。
+> 用户说"抓这篇成稿/把某篇秋秋文章存进来"→ 进 **H**，跑 `scripts/clip_qiuqiu_published.py`，不进 Raw/（Raw 是 wsj-clip 普通剪藏落点）。
 
 ## 输入输出协议
 
@@ -117,10 +119,11 @@ tone:   秋秋 / 思吉
 | `references/writing-samples.md` | 已发布文章样本（语气校准） | 仿写/润色 |
 | `references/mistakes.md` | 踩坑记录（RULE 化，可执行） | 写前避坑 |
 | `references/editorial-history.md` | 编辑修改历史（老婆改了什么） | 理解 P1 规律 |
+| `references/published-clip.md` | 成稿抓取流程（mptext API + 三段式落初稿目录） | 抓已发表文章（任务 H） |
 
 ## 执行流程（概要）
 
-1. **Router** 分类任务（A-G）
+1. **Router** 分类任务（A-H）
 2. **Pre-flight** 确认输入齐
 3. 按路径读对应 reference（如 B 新写 → writing-rules + article-patterns）
 4. 生成（黄金 10 条 + Rule Priority 贯穿）
