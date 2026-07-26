@@ -3,6 +3,12 @@ name: coros-official-mcp-weight
 description: 如何拿到 COROS 体重——官方 MCP (queryUserInfo) 的 OAuth 流程、cmoron 依赖、token 持久化与 cron 接入。非官方 API 无体重，官方 MCP 才有。
 ---
 
+> ## ⚠️ 2026-07-25 重大更新：官方 MCP 已全面接管
+> - 社区版 `cygnusb/coros-mcp` 已卸载。跑步/俯卧撑/睡眠/体重**全部**走官方 MCP（见 `coros_official.py`）。
+> - 原本文档下方「运动记录被 ban」结论**已过时**——实测 `querySportRecords` / `querySleepData` 在 `mcpcn.coros.com/mcp` 正常返回（HTTP 200）。7/20 那次是早期 public client 限流 + 旧 issuer 误判。
+> - 当前唯一确认限制：官方 `getActivityDetail` / `analyzeActivityDetail` 返回 Java NPE，故**心率区间/配速区间/训练负荷无数据源**（跑步表这 3 列留空）。
+> - `coros_weight.py` 已并入 `coros_official.py`（不再依赖 `projects/coros-mcp` 目录，该目录已删）。
+
 # COROS 体重 = 官方 MCP `queryUserInfo`
 
 > 非官方 `coros-mcp`（cygnusb）的所有 endpoint（web `/analyse/dayDetail`、`/analyse/query`、`/dashboard/query` + mobile `/coros/data/statistic/daily` 各种 type）**均不含体重字段**（已枚举确认）。

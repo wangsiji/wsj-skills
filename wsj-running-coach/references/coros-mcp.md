@@ -3,7 +3,14 @@ name: coros-mcp
 description: coros-mcp备用数据获取：安装、API端点、cron交互限制与Python程序化调用
 ---
 
-> ✅ **2026-07-18 实测状态**：`coros-mcp auth`（region=asia）已认证，Web+Mobile 双 token 有效。
+> ⚠️ **2026-07-25 已弃用**：社区版 `cygnusb/coros-mcp` 已卸载，全面切官方 COROS MCP。
+> 官方 MCP（`mcpcn.coros.com/mcp`）实测可用：`querySportRecords`（运动/俯卧撑）、`querySleepData`（睡眠分期）、`queryUserInfo`（体重）。
+> 替代实现见 `~/.hermes/scripts/coros_official.py`（token 复用 `~/.hermes/coros_mcp_token.json`）。
+> 官方 MCP 当前**不返回心率区间/配速区间/训练负荷**（getActivityDetail 服务端 NPE）。
+
+---
+
+> ✅ **2026-07-18 实测状态**（历史留存）：`coros-mcp auth`（region=asia）已认证，Web+Mobile 双 token 有效。
 > - `get_sleep_data` → 真实睡眠分期（deep/light/REM/awake + 心率）
 > - `get_daily_metrics` → HRV、RHR、training_load、ATI/CTI、tired_rate
 > - 权重/体脂：**确认无字段**（手表不测 + API 无端点）

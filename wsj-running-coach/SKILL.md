@@ -20,8 +20,8 @@ metadata:
 1. 减重是破三最高杠杆（1kg≈3秒/km；当前真实体重 **138斤→目标125斤**，约 13斤 ≈ 39秒/km 可用，非 158→125 的 50秒）
 2. 每次执行前拉最新 COROS 数据，不用缓存
 3. vault 是真相源，skill 用户核心数据段为快照（过期不更新不代表目标变）
-4. 睡眠/HRV 从 coros-mcp mobile API（`fetch_sleep` / `get_daily_metrics`）自动获取，失败退口述。⚠️ **`fetch_sleep` 必须 mobile token**：`try_auto_login()` 文档明确「Always skips mobile login」只拿 web token，直接调 `fetch_sleep` 会触发 `_ensure_mobile_token(auth)` → `auth.mobile_access_token` 报 `NoneType`。修正：调用前显式 `await login_mobile(email, password, "cn")` 补 mobile token（web 偶发失败时 mobile 仍稳，可作兜底）。睡眠日期 `SleepRecord.date`（= `happenDay`）是 `YYYYMMDD`（无横杠，**醒来日**，**非入睡日**）；cron 拉 `prev_y..d_y` 区间得每天一条，每条按**自身 date** 落对应日期行，绝不可统一写进 `day_str` 行（否则错位+漏写，实测踩过）。细节见 `references/coros-sleep-sync.md`
-5. 体重：COROS **非官方 API 无体重接口**（已枚举确认 dayDetail/mobile statistic 均不含）；但**官方 MCP 的 `queryUserInfo` 已接入**——走 `coros-mcp/coros_weight.py`（OAuth Dynamic Client Registration + PKCE，token 存 `~/.hermes/coros_mcp_token.json`）。cron 每天 10:00 自动拉体重写 `体重数据.md`（见 `references/coros-official-mcp-weight.md`）。无每日历史序列 tool，返回的是 profile 最新值，cron 每日快照即可
+4. 睡眠/HRV 从**官方 COROS MCP**（`coros_official.py` → `querySleepData`）自动获取，失败退口述。⚠️ **2026-07-25 起已全面切官方 MCP**，社区版 `coros-mcp`（cygnusb）已卸载。官方 `querySleepData` 返回比例%（deep/light/REM/awake），`coros_official.py` 自动转分钟写入；睡眠日期按**醒来日**落对应日期行（官方文本每条自带 `YYYY-MM-DD` 醒来日）。官方**不返回心率区间/配速区间/训练负荷**（getActivityDetail 服务端 NPE），跑步表这 3 列留空（历史行有区间数据，新行无——介意者看历史）。
+5. 体重：官方 MCP `queryUserInfo`（`coros_official.py` → `get_weight_kg()`），OAuth token 存 `~/.hermes/coros_mcp_token.json`。cron 每天 10:00 自动拉体重写 `体重数据.md`。无每日历史序列 tool，返回 profile 最新值，cron 每日快照即可。
 
 ## Rule Priority
 
@@ -45,8 +45,8 @@ metadata:
 用户说「里程碑进度」
   → 查当前里程碑 → 进度报告 → 读 vault 马拉松比赛.md（倒推里程碑段）
 用户说"睡眠/HRV/体重"
-  → 睡眠/HRV → coros-mcp get_sleep_data/get_daily_metrics
-  → 体重 → coros-mcp/coros_weight.py get_weight_kg()（官方 MCP queryUserInfo，cron 每日自动拉；手动记也行）
+  → 睡眠/HRV → coros_official.py get_sleep_data（官方 MCP querySleepData）
+  → 体重 → coros_official.py get_weight_kg()（官方 MCP queryUserInfo，cron 每日自动拉；手动记也行）
 ```
 
 ## 输入输出协议
@@ -56,9 +56,9 @@ metadata:
 
 ## Pre-flight Check
 
-- [ ] COROS 数据已拉最新（running_coach.py or coros-mcp）
+- [ ] COROS 数据已拉最新（官方 MCP via coros_official.py；社区版 coros-mcp 已卸载 2026-07-25）
 - [ ] vault 健康主线已确认（10-健康.md + 马拉松比赛.md；⚠️ 2026-07-19 已删 `年底三目标训练总表.md`，破三规划已并入 `马拉松比赛.md`，勿再引用旧路径）
-- [ ] 睡眠数据已取（coros-mcp get_sleep_data）
+- [ ] 睡眠数据已取（coros_official.py get_sleep_data，官方 MCP）
 - [ ] 用户核心数据段标注过期风险
 
 ## Never Do
