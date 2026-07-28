@@ -60,40 +60,81 @@ GET /api/public/v1/accountbyurl?url={url_encoded}
 GET /api/public/beta/authorinfo?fakeid={公众号id}
 ```
 
-## Markdown 输出格式与清理（手动剪藏用）
+## 公众号原文转换（手动剪藏用，v3 流程）
 
-`format=markdown` 输出的内容在合并进最终文件前**必须清理**。原始输出包含 CSS 噪声、封面图链接、重复 H1（`=====` 下划线格式）和平台界面文本。
+> ⚠️ **废弃旧 `format=markdown` + 自写正则清理方案**（2026-07-28 实测：markdown 格式需会员、html2text/markdownify 转换失真、H1 误判严重）。
+> **现用方案**：`format=html` 抓净化 HTML → BeautifulSoup 递归解析 `#js_content` → 保留真实嵌套层级 + 长描述降级 + mmbiz 外链。
 
-**清理顺序（⚠️ 旧正则已失效，下面是 2026-07-18 实测可工作的版本）：**
+### 抓取
 
-> ⚠️ 旧文档的 `re.sub(r'^#js\\_row.+?^$\\n', ...)` **完全不命中** —— 实际 API 返回的 CSS 是**单行**（`#js\_row\_immersive\_stream\_wrap { max-width: 667px; ... }`），没有尾随空行，按上面那行去删会把整段 CSS 留在正文开头。正确做法是按行特征过滤。
-
-```python
-import re
-
-# 1. 删 CSS 行：含 'max-width' 且含 '{' 的那一长串样式行
-lines = body.split('\n')
-body = '\n'.join(ln for ln in lines if not ('max-width' in ln and '{' in ln))
-# 2. 删封面图行（转义形式是 ![cover\_image]）
-body = re.sub(r'^!\[cover\\_image\].*$\n?', '', body, flags=re.MULTILINE)
-# 3. 删重复的 ==== 式 H1（标题 + 下划线）
-body = re.sub(r'^.+\n=+\n?', '', body, flags=re.MULTILINE)
-# 4. 删平台杂项
-body = re.sub(r'^原创 .+$\n?', '', body, flags=re.MULTILINE)
-body = re.sub(r'^在小说阅读器读本章.*$\n?', '', body, flags=re.MULTILINE)
-body = re.sub(r'^去阅读\s*$', '', body, flags=re.MULTILINE)
-body = re.sub(r'^在小说阅读器中沉浸阅读\s*$', '', body, flags=re.MULTILINE)
-# 5. 合并 3+ 空行
-body = re.sub(r'\n{3,}', '\n\n', body)
-body = body.strip()
-# 6. 若上面的清理吃掉了 H1，补一个
-if not body.startswith('# '):
-    body = f'# {title}\n\n{body}'
+```bash
+URL="https://mp.weixin.qq.com/s/XXXX"
+ENC=$(python3 -c "import urllib.parse;print(urllib.parse.quote('$URL'))")
+# html 格式游客可用（markdown 需会员）
+curl -s "https://down.mptext.top/api/public/v1/download?url=$ENC&format=html" -o /tmp/gzh.html
 ```
 
-清理后的 body 应以 `# ` 开头，不含 CSS 或界面文本。
+### 转换脚本（BeautifulSoup 递归 + 依次降级）
 
-**推荐路径**：把 down.mptext.top 的原始 markdown **直接喂给 `merge-clip.py`**，不要自己先清理再喂。脚本内部已带一份精简 cleanup（`cover_image` / `原创` / `往期回顾` 等），双重清理会丢内容。只有需要自定义时才手动清理。
+```python
+from bs4 import BeautifulSoup
+import re
+
+h = open('/tmp/gzh.html', encoding='utf-8').read()
+soup = BeautifulSoup(h, 'html.parser')
+c = soup.find(id='js_content')
+
+def md_escape(s):
+    return s.replace('\\', '\\\\').replace('*', '\\*').replace('`', '\\`').replace('_', '\\_')
+
+def is_lead(text):
+    """长描述型标题（>25字或含句号/逗号）→ 降级为正文"""
+    t = text.strip()
+    return len(t) > 25 or ('。' in t) or ('，' in t)
+
+BASE = 2  # 文件#1 / 区块##2 / 原文从###3 起；源 hN → ###+(N-1)
+
+def walk(el, out):
+    for child in el.children:
+        tag = getattr(child, 'name', None)
+        if tag is None:
+            if child.strip(): out.append(md_escape(child.strip()))
+            continue
+        if tag == 'img':
+            src = child.get('data-src') or child.get('src')
+            if src: out.append(f'![]({src})')   # 保留 mmbiz 外链，不下载
+            continue
+        if tag in ('br',): continue
+        if tag in ('h1','h2','h3','h4','h5','h6'):
+            txt = child.get_text(' ', strip=True)
+            if not txt: continue
+            lvl = int(tag[1]) + BASE
+            out.append(f"{'#'*lvl} {md_escape(txt)}" if not is_lead(txt) else md_escape(txt))
+            continue
+        if tag in ('p','li','div','section','blockquote','strong','span','code','pre'):
+            walk(child, out); continue
+        if child.get_text(' ', strip=True): out.append(md_escape(child.get_text(' ', strip=True)))
+
+out = []
+walk(c, out)
+body = '\n\n'.join(x for x in out if x.strip())
+body = re.sub(r'\n{3,}', '\n\n', body).strip()
+```
+
+### 要点
+
+- **图片保留 `mmbiz.qpic.cn` 外链**（`<img>` 的 `data-src` 或 `src`），不下载本地 assets
+- **标题依次降级**：源 `h1`→`###`、`h2`→`####`，保留真实 DOM 嵌套（不是一刀切降一级）
+- **长描述降级**：源 HTML 把"小节导语长句"标成 h1/h2 的，实测常见，需 `is_lead()` 判为普通正文
+- 封面图 `![cover_image]`、小说阅读器界面文本（`在小说阅读器读本章`/`去阅读`）、空 `![]()` 在 walk 中跳过或过滤
+
+### AI 智能总结（getnote API，非手写）
+
+`## AI 智能总结` 段由 **getnote** 生成（见 `references/getnote-api.md`）：
+1. POST `/open/api/v1/resource/note/save` 提交 mp 链接 → 拿 task_id
+2. 轮询 `/note/task/progress` 至 success
+3. GET `/note/detail?id=` 取 `content`（结构化 AI 总结）
+4. getnote content 自带 `###` → 放进 `## AI 智能总结` 下降级为 `####`
 
 ## API Key 获取 & 认证方式
 
