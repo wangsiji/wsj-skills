@@ -143,14 +143,15 @@ cron 任务的最终响应会被自动投递到用户的聊天中，格式要求
 from hermes_tools import write_file
 
 merged = f"""---
+name: {title}
+description: "小宇宙播客——{podcast}主播{host}：一句话概述本期核心内容"
 category:
   - "[[小宇宙]]"
 author:
   - "[[{host_name}]]"
-url: "{url}"
-tags: [剪藏, 播客]
-created: {today}
-modified: {today}
+source: "{url}"
+tags: [剪藏/小宇宙, 剪藏/{主题1}, 剪藏/{主题2}]
+status: ToDo
 ---
 
 # {title}

@@ -83,14 +83,15 @@ def merge(source_type: str, title: str, author: str, url: str,
     now = date.today().strftime("%Y%m%d")
 
     frontmatter = f"""---
+name: {title}
+description: "{cfg['category']}剪藏——{author}：{title}"
 category:
   - "[[{cfg['category']}]]"
 author:
   - "[[{author}]]"
-url: "{url}"
-tags: [剪藏, {cfg['tag']}]
-created: {now}
-modified: {now}
+source: "{url}"
+tags: [剪藏/{cfg['tag']}, 剪藏/{cfg.get('tag2', cfg['tag'])}]
+status: ToDo
 ---
 
 """

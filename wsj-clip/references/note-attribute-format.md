@@ -1,9 +1,9 @@
 # 笔记属性格式标准（剪藏 Raw/ 规范 v3）
 
-> 2026-07-28 大更新：统一六字段、嵌套 tags、标题依次降级、图片外链、AI 总结走 getnote API。
+> 2026-07-28 大更新：统一七字段、嵌套 tags、标题依次降级、图片外链、AI 总结走 getnote API。
 > 与 vault 全局 Metadata Schema（name/description/category/tags/status 等）对齐，去 created/modified/url 旧字段。
 
-## Frontmatter 六字段（必填，顺序固定）
+## Frontmatter 七字段（必填，顺序固定）
 
 ```yaml
 ---
@@ -15,6 +15,7 @@ author:
   - "[[作者名]]"
 source: "https://原文链接"
 tags: [剪藏/来源, 剪藏/主题1, 剪藏/主题2]
+status: ToDo
 ---
 ```
 
@@ -26,6 +27,7 @@ tags: [剪藏/来源, 剪藏/主题1, 剪藏/主题2]
 - `author` — 作者名，用 `[[双链]]` 包裹
 - `source` — 原文链接（取代旧 `url` 字段）
 - `tags` — **嵌套格式**，见下
+- `status` — 剪藏消化状态，新建时固定 `ToDo`（消化/提炼进 Topics 后改 `Done`）
 
 ### ❌ 禁止字段
 
@@ -103,6 +105,7 @@ author:
   - "[[起什么好3211]]"
 source: "https://mp.weixin.qq.com/s/XXXX"
 tags: [剪藏/公众号, 剪藏/Obsidian, 剪藏/知识管理]
+status: ToDo
 ---
 
 # 如何使用obsidian搭建知识库

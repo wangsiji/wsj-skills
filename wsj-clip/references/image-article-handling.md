@@ -62,14 +62,15 @@ Raw/Focus/GZH/{公众号名称}/
 
 ```markdown
 ---
+name: {标题}
+description: "公众号「{作者名}」图文——一句话摘要核心内容"
 category:
   - "[[公众号]]"
 author:
   - "[[{作者名}]]"
-url: "{URL}"
-tags: [剪藏, 公众号]
-created: YYYYMMDD
-modified: YYYYMMDD
+source: "{URL}"
+tags: [剪藏/公众号, 剪藏/{主题1}, 剪藏/{主题2}]
+status: ToDo
 ---
 
 # {标题}
