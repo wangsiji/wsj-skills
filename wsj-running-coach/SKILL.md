@@ -69,7 +69,7 @@ metadata:
 - ❌ 用 Web API dashboard/query 的 sleep 字段（缓存值，不可用）
 - ❌ 在建设期（7-8月）安排全马测试（打乱巅峰期节奏）
 - ❌ 为用户已在 COROS 安排/追踪的习惯（每日跑步、俯卧撑等）另建 vault 追踪文件 —— **一个项目一个文件**，数据从 COROS 拉，不重复建。用户原话：「尽量一个项目一个文件」
-- ❌ 把跑步/俯卧撑/训练计划迁到官方 MCP：动态注册的 public client 被官方网关限流，`querySportRecords`/`queryTrainingSchedule` 等运动记录类 tool 调不通（返回 "exceeds the LLM capability boundary"）。体重走官方 MCP（queryUserInfo），运动记录/计划走非官方 coros-mcp，这是当前最优分工，勿反复试迁移。详见 `references/coros-official-mcp-weight.md` 的「官方 MCP 能力边界」
+- ✅ **2026-08-05 实测：官方 MCP 已可拉训练计划**（`queryTrainingSchedule`，参数名 **`startDate`/`endDate`** 格式 yyyyMMdd——用 `startDay`/`endDay` 会被静默忽略返回默认日程）。`querySportRecords` 参数同理是 `startDate`/`endDate`。coros_official.py 的 `get_sport_records_raw`/`get_sleep_data_raw` 内部仍传旧参数名 `startDay`/`endDay`，实测返回的是默认窗口（可能参数被忽略）——改封装前先确认。社区版 coros-mcp 已卸载，训练计划直接走官方 MCP 即可，勿再按旧文档找 fetch_schedule。
 - ⚠️ `running_coach.py` 当前硬编码密码（违反上条「内联密码」）；cron 自动跑前先确认 playwright 可用。CLI 参数用 `--from-date`/`--to-date`（非 `--date-from`）
 
 ## 每日自动拉取（cron 模式）

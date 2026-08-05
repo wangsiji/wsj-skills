@@ -23,17 +23,16 @@ description: 如何拿到 COROS 体重——官方 MCP (queryUserInfo) 的 OAuth
 - `queryDailyHealthData` 有步数/卡路里/睡眠/压力，**但不含体重**（已验证）
 - `queryHealthCheckTimeSeries` 是"健康打卡"序列，你不打卡就无数据
 
-## 官方 MCP 能力边界（关键，避免重复踩坑）
+## 官方 MCP 能力边界（2026-08-05 复核更新）
 
-> 不要试图把跑步/俯卧撑/训练计划也迁到官方 MCP —— **动态注册的 public client 被官方网关限流，运动记录类 tool 调不通**。
-
-- ⚠️ `querySportRecords`（跑步/俯卧撑活动）、`queryTrainingSchedule`（训练计划）等**大数据量 tool 被官方 MCP 网关拒绝**，返回：
-  `"Tool call anomalies detected... request exceeds the LLM capability boundary..."`
-  原因：Dynamic Client Registration 的 public client 权限受限，官方只放开了 profile/轻量查询。
-- ✅ 实测**只有 `queryUserInfo`（体重）能稳定返回**；`queryDailyHealthData` 等轻量 tool 可用但**不含体重**。
-- 运动记录/计划仍走**非官方 coros-mcp**（`fetch_activities` / `fetch_schedule`，中国区网络偶发超时需重试）。
-- 若将来要解锁官方 MCP 全部 22 个 tool → 需要 **COROS 官方审核发放的 OAuth app（client_id/secret）**，不是现场动态注册能拿到的。
-- ⚠️ 当前 token 是 public client 动态注册所得，COROS **随时可能 revoke** 此 client；若某天 `coros_weight.get_weight_kg()` 失败，大概率是 client 被 ban，回退手动记或重新走一次 OAuth 流程。
+> ✅ **2026-08-05 实测：`querySportRecords` / `queryTrainingSchedule` 均已可调通**（此前的"大数据量 tool 被限流"结论已过时）。官方 MCP 现在能拉：运动记录（含距离/配速/心率/组数）、训练计划（完整课表+Plan ID+距离+预估时长+负荷 TL）、睡眠、体重。
+>
+> ⚠️ **参数名陷阱**：`queryTrainingSchedule` / `querySportRecords` 的参数是 **`startDate`/`endDate`**（yyyyMMdd 格式）。传 `startDay`/`endDay` 会被服务端静默忽略，返回默认日程（看起来"能通"但数据是错的窗口）——2026-08-05 曾因此误判"计划不存在"，换正确参数名后 15 周全马计划立刻出现。
+>
+> - 训练计划查询示例：`queryTrainingSchedule({"startDate":"20260810","endDate":"20261122"})` → 返回逐日课表（W30125/S5799/P1004 等课名 + Distance + Estimated Time + Load TL）
+> - `queryTrainingPlanDetail` 工具**不存在**（tools/list 里没有），返回文本里的 "Use Plan ID with queryTrainingPlanDetail" 是服务端固定提示，忽略
+> - 当前 token 是 public client 动态注册所得，COROS 随时可能 revoke；失败则重走 OAuth 流程
+> - 仍确认的限制：官方 `getActivityDetail` / `analyzeActivityDetail` 返回 Java NPE → 心率区间/配速区间/训练负荷无单条活动明细数据源（跑步表 3 列留空）
 
 ## 依赖与实现（2026-07-20 重写为自包含）
 
